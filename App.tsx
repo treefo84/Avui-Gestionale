@@ -94,7 +94,7 @@ const App: React.FC = () => {
   const [pendingUser, setPendingUser] = useState<User | null>(null);
 
   // AGGIUNGI QUESTA FUNZIONE INTERA:
-  // const handleServerLogin = async (e: React.FormEvent) => {
+ 
    //    e.preventDefault();
    //    const form = e.target as HTMLFormElement;
    //    const username = (form.elements.namedItem('username') as HTMLInputElement).value;
@@ -128,7 +128,7 @@ const App: React.FC = () => {
  //  };
 
   // 2. FETCH DATI INIZIALI
- // useEffect(() => {
+  useEffect(() => {
   //  fetch('/wp-json/avui/v1/state')
   //    .then(res => res.json())
   //    .then(data => {
@@ -141,14 +141,14 @@ const App: React.FC = () => {
    //     setDayNotes(data.dayNotes ?? []);
   //      setNotifications(data.notifications ?? []);
    //     setMaintenanceRecords(data.maintenanceRecords ?? []);
-  //      setAppReady(true);
+        setAppReady(true);
   //    })
  //     .catch(err => {
  //         console.error("Errore fetch:", err);
           // Fallback per non bloccare l'app se il fetch fallisce in dev
  //         setAppReady(true); 
 //      });
-//  }, []);
+ }, []);
 
   
 
@@ -569,7 +569,14 @@ const App: React.FC = () => {
                     </div>
                 )}
 
-                <form onSubmit={handleServerLogin} className="space-y-4">
+                <form
+  onSubmit={(e) => {
+    e.preventDefault();
+    setLoginError("Login Supabase non ancora collegato");
+  }}
+  className="space-y-4"
+>
+
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1">Username</label>
                         <input name="username" type="text" className="w-full border border-slate-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="Es. trifo" required />
