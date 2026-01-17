@@ -128,27 +128,27 @@ const App: React.FC = () => {
   };
 
   // 2. FETCH DATI INIZIALI
-  useEffect(() => {
-    fetch('/wp-json/avui/v1/state')
-      .then(res => res.json())
-      .then(data => {
-        setUsers(data.users ?? []);
-        setBoats(data.boats ?? []);
-        setActivities(data.activities ?? []);
-        setAvailabilities(data.availabilities ?? []);
-        setAssignments(data.assignments ?? []);
-        setGeneralEvents(data.generalEvents ?? []);
-        setDayNotes(data.dayNotes ?? []);
-        setNotifications(data.notifications ?? []);
-        setMaintenanceRecords(data.maintenanceRecords ?? []);
-        setAppReady(true);
-      })
-      .catch(err => {
-          console.error("Errore fetch:", err);
+ // useEffect(() => {
+  //  fetch('/wp-json/avui/v1/state')
+  //    .then(res => res.json())
+  //    .then(data => {
+   //     setUsers(data.users ?? []);
+  //      setBoats(data.boats ?? []);
+  //      setActivities(data.activities ?? []);
+  //      setAvailabilities(data.availabilities ?? []);
+  //      setAssignments(data.assignments ?? []);
+  //      setGeneralEvents(data.generalEvents ?? []);
+   //     setDayNotes(data.dayNotes ?? []);
+  //      setNotifications(data.notifications ?? []);
+   //     setMaintenanceRecords(data.maintenanceRecords ?? []);
+  //      setAppReady(true);
+  //    })
+ //     .catch(err => {
+ //         console.error("Errore fetch:", err);
           // Fallback per non bloccare l'app se il fetch fallisce in dev
-          setAppReady(true); 
-      });
-  }, []);
+ //         setAppReady(true); 
+//      });
+//  }, []);
 
   
 
