@@ -94,38 +94,38 @@ const App: React.FC = () => {
   const [pendingUser, setPendingUser] = useState<User | null>(null);
 
   // AGGIUNGI QUESTA FUNZIONE INTERA:
-  const handleServerLogin = async (e: React.FormEvent) => {
-      e.preventDefault();
-      const form = e.target as HTMLFormElement;
-      const username = (form.elements.namedItem('username') as HTMLInputElement).value;
-      const password = (form.elements.namedItem('password') as HTMLInputElement).value;
+  // const handleServerLogin = async (e: React.FormEvent) => {
+   //    e.preventDefault();
+   //    const form = e.target as HTMLFormElement;
+   //    const username = (form.elements.namedItem('username') as HTMLInputElement).value;
+   //    const password = (form.elements.namedItem('password') as HTMLInputElement).value;
 
-      setLoginError(null);
+   //    setLoginError(null);
       
-      try {
-          const response = await fetch('/wp-json/avui/v1/login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ username, password })
-          });
+ //      try {
+     //      const response = await fetch('/wp-json/avui/v1/login', {
+    //           method: 'POST',
+   //            headers: { 'Content-Type': 'application/json' },
+    //           body: JSON.stringify({ username, password })
+    //       });
 
-          const data = await response.json();
+   //        const data = await response.json();
 
-          if (!response.ok) {
-              throw new Error('Credenziali non valide');
-          }
+   //        if (!response.ok) {
+    //           throw new Error('Credenziali non valide');
+    //       }
 
           // Login OK: Se l'utente non era in lista, lo aggiungiamo al volo
-          if (!users.find(u => u.id === data.id)) {
-              setUsers(prev => [...prev, data]);
-          }
+    //       if (!users.find(u => u.id === data.id)) {
+    //           setUsers(prev => [...prev, data]);
+    //       }
 
-          setCurrentUserId(data.id);
-          setIsAuthenticated(true);
-      } catch (err) {
-          setLoginError("Utente o password errati.");
-      }
-  };
+    //       setCurrentUserId(data.id);
+    //       setIsAuthenticated(true);
+    //   } catch (err) {
+    //       setLoginError("Utente o password errati.");
+   //    }
+ //  };
 
   // 2. FETCH DATI INIZIALI
  // useEffect(() => {
