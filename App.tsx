@@ -1,3 +1,5 @@
+throw new Error("APP TSX CARICATO DAVVERO");
+
 import React, { useState, useEffect } from 'react';
 // import { ACTIVITIES, BOATS, USERS, MAINTENANCE_RECORDS } from './constants'; // Commentato perché usi il fetch
 import { Activity, Assignment, AssignmentStatus, Availability, AvailabilityStatus, Boat, ConfirmationStatus, NotificationType, Role, User, UserNotification, GeneralEvent, DayNote, MaintenanceRecord, MaintenanceStatus } from './types';
