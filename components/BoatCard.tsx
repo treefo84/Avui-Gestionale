@@ -33,8 +33,16 @@ export const BoatCard: React.FC<BoatCardProps> = ({
   const instructors = users.filter(u => u.role === Role.INSTRUCTOR || u.role === Role.MANAGER);
   const helpers = users.filter(u => u.role === Role.HELPER);
   
+const didLogRef = React.useRef(false);
+
+if (!didLogRef.current) {
+  console.log("[BoatCard][debug]", { boatId: boat.id, boatType: boat.type, activitiesLen: activities.length });
+  didLogRef.current = true;
+};
+
+
   // Filter activities based on boat type
-  const allowedActivities = activities.filter(a => a.allowedBoatTypes.includes(boat.type));
+  const allowedActivities = activities.filter(a => (a.allowedBoatTypes ?? []).includes(boat.type));
   const isCancelled = assignment?.status === AssignmentStatus.CANCELLED;
 
   const handleFieldChange = (field: keyof Assignment, value: any) => {

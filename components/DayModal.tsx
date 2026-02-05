@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { Activity, Assignment, AssignmentStatus, Availability, AvailabilityStatus, Boat, Role, User, GeneralEvent, ConfirmationStatus, DayNote } from '../types';
+import { Activity, Assignment, AssignmentStatus, Availability, AvailabilityStatus, Boat, Role, User, GeneralEvent, ConfirmationStatus, DayNote, CalendarEvent } from '../types';
 import { BoatCard } from './BoatCard';
 import { X, Anchor, Skull, CalendarX, Plus, Users, ChevronDown, ChevronUp, Clock, StickyNote, MessageCircle, Send, Trash2, Lock, Pencil, Save, CalendarDays } from 'lucide-react';
 import { differenceInCalendarDays, isSaturday, isSunday, addDays, format } from 'date-fns';
@@ -17,6 +16,7 @@ interface DayModalProps {
   assignments: Assignment[];
   generalEvents: GeneralEvent[];
   dayNotes: DayNote[];
+  calendarEvents: CalendarEvent[];
   onUpdateAvailability: (availability: Availability) => void;
   onUpdateAssignment: (assignment: Assignment) => void;
   onDeleteAssignment: (id: string) => void;
@@ -27,10 +27,18 @@ interface DayModalProps {
   onDeleteDayNote: (id: string) => void;
 }
 
-const parseDate = (dateString: string) => {
-  const [year, month, day] = dateString.split('-').map(Number);
+const parseDate = (dateString?: string | null) => {
+  if (!dateString || typeof dateString !== "string") return null;
+
+  // accetta "YYYY-MM-DD" oppure timestamp ISO (prende i primi 10)
+  const safe = dateString.slice(0, 10);
+  const [year, month, day] = safe.split("-").map(Number);
+
+  if (!year || !month || !day) return null;
+
   return new Date(year, month - 1, day);
 };
+
 
 export const DayModal: React.FC<DayModalProps> = ({
   date,
@@ -44,6 +52,7 @@ export const DayModal: React.FC<DayModalProps> = ({
   assignments,
   generalEvents,
   dayNotes,
+  calendarEvents = [],
   onUpdateAvailability,
   onUpdateAssignment,
   onDeleteAssignment,
@@ -53,6 +62,14 @@ export const DayModal: React.FC<DayModalProps> = ({
   onAddDayNote,
   onDeleteDayNote
 }) => {
+
+      console.log("[B4][DayModal render]", {
+    date,
+    isOpen,
+    calLen: calendarEvents?.length,
+    calSample: calendarEvents?.[0],
+  });
+
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   
   // Create Event State
@@ -158,14 +175,20 @@ export const DayModal: React.FC<DayModalProps> = ({
   };
 
   const getEffectiveAssignment = (boatId: string) => {
-    const targetDate = parseDate(date);
-    return assignments.find(a => {
-        if (a.boatId !== boatId) return false;
-        const startDate = parseDate(a.date);
-        const diff = differenceInCalendarDays(targetDate, startDate);
-        return diff >= 0 && diff < a.durationDays;
-    });
-  };
+  const targetDate = parseDate(date);
+  if (!targetDate) return undefined;
+
+  return assignments.find((a) => {
+    if (a.boatId !== boatId) return false;
+
+    const startDate = parseDate(a.date);
+    if (!startDate) return false;
+
+    const diff = differenceInCalendarDays(targetDate, startDate);
+    return diff >= 0 && diff < (a.durationDays ?? 1);
+  });
+};
+
 
   const getBusyUserIds = (excludeBoatId: string) => {
       const targetDate = parseDate(date);
@@ -214,6 +237,28 @@ export const DayModal: React.FC<DayModalProps> = ({
               </button>
           </div>
         </div>
+
+        {calendarEvents.length > 0 && (
+  <div className="px-6 pt-4">
+    <div className="p-3 rounded-xl border border-indigo-200 bg-indigo-50">
+      <div className="font-bold text-indigo-700 mb-2">Eventi del giorno</div>
+
+      <div className="space-y-2">
+        {calendarEvents.map((e) => (
+          <div key={e.id} className="text-sm text-slate-700">
+            <div className="font-semibold">{e.title}</div>
+            <div className="text-xs text-slate-500">
+              {e.startDate} → {e.endDate}
+              {e.type ? ` • ${e.type}` : ""}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+)}
+
+
 
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1 space-y-8">

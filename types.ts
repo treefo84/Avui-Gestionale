@@ -1,14 +1,14 @@
 
 export enum Role {
-  INSTRUCTOR = 'INSTRUCTOR',
-  HELPER = 'HELPER',
+  INSTRUCTOR = 'ISTRUTTORE',
+  HELPER = 'AIUTANTE',
   MANAGER = 'MANAGER',
-  RESERVE = 'RESERVE'
+  RESERVE = 'RISERVA'
 }
 
 export enum BoatType {
-  SAILING = 'SAILING',
-  POWER = 'POWER'
+  SAILING = 'VELA',
+  POWER = 'MOTORE'
 }
 
 export interface User {
@@ -29,8 +29,8 @@ export interface User {
 export interface Boat {
   id: string;
   name: string;
-  type: BoatType;
-  image: string;
+  type?: BoatType;
+  image?: string;
 }
 
 export interface Activity {
@@ -146,3 +146,34 @@ export interface AppState {
   dayNotes: DayNote[];
   maintenanceRecords: MaintenanceRecord[];
 }
+
+// --- Supabase: public.calendar_events ---
+export interface DbCalendarEventRow {
+  id: string;
+  boat_id: string | null;
+  title: string;
+  start_date: string; // ISO date o timestamp (come arriva da Supabase)
+  end_date: string | null;
+  type: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+// --- App: evento calendario normalizzato (camelCase) ---
+export interface CalendarEvent {
+  id: string;
+  boatId: string;
+  title: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  type?: string | null;
+  createdBy?: string;
+  createdAt?: string;
+
+  activityId?: string | null;
+
+  // campi “comodi” già pronti per UI
+  boatName?: string | null;
+  activityName?: string | null;
+}
+

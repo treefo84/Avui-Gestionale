@@ -412,12 +412,32 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
                                            <div>
                                                <h4 className="font-bold text-slate-800 group-hover:text-indigo-700 transition-colors">{act.name}</h4>
                                                <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                                                   <span className="flex items-center gap-1"><Clock size={12}/> {act.defaultDurationDays} gg</span>
+                                                   <span className="flex items-center gap-1">
+  <Ship size={12} />{" "}
+  {(
+    Array.isArray((act as any).allowedBoatTypes)
+      ? (act as any).allowedBoatTypes
+      : Array.isArray((act as any).allowed_boat_types)
+      ? (act as any).allowed_boat_types
+      : []
+  ).join(", ")}
+</span>
+
                                                    {act.isGeneral ? (
-                                                        <span className="text-purple-500 font-medium">Tutti invitati</span>
-                                                   ) : (
-                                                        <span className="flex items-center gap-1"><Ship size={12}/> {act.allowedBoatTypes.join(', ')}</span>
-                                                   )}
+  <span className="text-purple-500 font-medium">Tutti invitati</span>
+) : (
+  <span className="flex items-center gap-1">
+    <Ship size={12} />{" "}
+    {(
+      Array.isArray((act as any).allowedBoatTypes)
+        ? (act as any).allowedBoatTypes
+        : Array.isArray((act as any).allowed_boat_types)
+        ? (act as any).allowed_boat_types
+        : []
+    ).join(", ")}
+  </span>
+)}
+
                                                </div>
                                            </div>
                                        </div>
