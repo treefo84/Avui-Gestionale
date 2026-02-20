@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./hooks/useAuth";
 
-
 import {
   Activity,
   Assignment,
@@ -26,8 +25,17 @@ import { DayModal } from "./components/DayModal";
 import { DayHoverModal } from "./components/DayHoverModal";
 import { UserManagementModal } from "./components/UserManagementModal";
 import { ProfilePage } from "./components/ProfilePage";
-import { ForcePasswordChange } from "./components/ForcePasswordChange";
 import { FleetManagementPage } from "./components/FleetManagementPage";
+import { CalendarGrid } from "./components/CalendarGrid";
+import { Navbar } from "./components/Navbar";
+import { ModalsLayer } from "./components/ModalsLayer";
+import { CalendarHeader } from "./components/CalendarHeader";
+import { AppNavbar } from "./components/AppNavbar";
+
+
+
+
+
 
 import {
   addDays,
@@ -68,31 +76,26 @@ type DbUserRow = {
   role?: string | null;
   is_admin?: boolean | null;
   avatar_url?: string | null;
+  phone_number?: string | null;
+  birth_date?: string | null;
+  google_calendar_connected?: boolean | null;
 };
+
+const DEV = import.meta.env.DEV;
+if (DEV) console.log("...");
+
+
 
 const parseDate = (dateString?: string | null) => {
   if (!dateString) {
-    // fallback "safe": oggi a mezzanotte
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return d;
   }
-
-  // se arriva "YYYY-MM-DDTHH..." taglia
-  const safe = dateString.slice(0, 10);
-
+  const safe = String(dateString).slice(0, 10);
   const [year, month, day] = safe.split("-").map(Number);
   return new Date(year, (month ?? 1) - 1, day ?? 1);
 };
-
-
-const normalizeBoatType = (t: any) => {
-  const v = String(t ?? "").trim().toLowerCase();
-  if (v === "vela") return "VELA";
-  if (v === "motore") return "MOTORE";
-  return "VELA"; // fallback sicuro
-};
-
 
 const NotificationToast = ({
   message,
@@ -154,29 +157,13 @@ const AvailabilityWarningModal = ({
   </div>
 );
 
-
-const mapDbCalendarEvent = (row: DbCalendarEventRow): CalendarEvent => ({
-  id: row.id,
-  boatId: row.boat_id,
-  title: row.title,
-  startDate: row.start_date,
-  endDate: row.end_date,
-  type: row.type,
-  createdBy: row.created_by,
-  createdAt: row.created_at,
-});
-
-
-
 const App: React.FC = () => {
-  // --- AUTH (da hook) ---
+  // --- AUTH ---
   const { session, isLoggedIn, loading } = useAuth();
-  const sessionUser = session?.user;
-  const currentUserId = session?.user?.id ?? null;
+  const sessionUser = session?.user ?? null;
+  const currentUserId = sessionUser?.id ?? null;
 
-
-  // --- DATA STATE ---
-  // user “DB” = riga in public.users
+  // --- DB USER ---
   const [dbUser, setDbUser] = useState<DbUserRow | null>(null);
 
   // --- UI STATE ---
@@ -184,7 +171,7 @@ const App: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarView, setCalendarView] = useState<"month" | "week">("month");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  
+
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [notificationToast, setNotificationToast] = useState<any>(null);
@@ -199,38 +186,57 @@ const App: React.FC = () => {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  // “Password change” flow (se lo usi ancora in locale)
-  const [pendingUser, setPendingUser] = useState<User | null>(null);
-
   // app data
   const [users, setUsers] = useState<User[]>([]);
-  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
-  const [selectedCalendarEvents, setSelectedCalendarEvents] = useState<CalendarEvent[]>([]);
-  
-
   const [boats, setBoats] = useState<Boat[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [selectedCalendarEvents, setSelectedCalendarEvents] = useState<CalendarEvent[]>([]);
   const [availabilities, setAvailabilities] = useState<Availability[]>([]);
+  const [availabilitiesLoaded, setAvailabilitiesLoaded] = useState(false);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [generalEvents, setGeneralEvents] = useState<GeneralEvent[]>([]);
   const [dayNotes, setDayNotes] = useState<DayNote[]>([]);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState<MaintenanceRecord[]>([]);
 
-  
+  const toUuidOrNull = (v: any) => {
+  const s = String(v ?? "").trim();
+  return s.length ? s : null;
+  };
+
+  useEffect(() => {
+  const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // niente
+  });
+
+  // Se trovi errori di refresh token, ti conviene forzare signOut (vedi sotto)
+  return () => sub.subscription.unsubscribe();
+}, []);
+
+useEffect(() => {
+  // “scudo”: se la sessione è rotta, esci e ripulisci
+  (async () => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error?.message?.toLowerCase().includes("refresh token")) {
+      await supabase.auth.signOut();
+      localStorage.clear();
+      sessionStorage.clear();
+      location.reload();
+    }
+  })();
+}, []);
 
 
-  
-  const didRunRef = useRef<string | null>(null);
+  // --- DEBUG STATE calendarEvents ---
 
-    useEffect(() => {
-        console.log("[A3][STATE calendarEvents] len:", calendarEvents.length);
-         if (calendarEvents[0]) console.log("[A3][STATE first]", calendarEvents[0]);
-    }, [calendarEvents]);
-
+  useEffect(() => {
+  console.log("[ASSIGNMENTS][STATE] len:", assignments.length);
+  if (assignments[0]) console.log("[ASSIGNMENTS][STATE] first:", assignments[0]);
+}, [assignments]);
 
 
-  // ✅ currentUser: UNO SOLO (fallback se dbUser non è ancora arrivato)
+  // ✅ currentUser: fallback se dbUser non è ancora arrivato
   const currentUser: User | null = useMemo(() => {
     if (!sessionUser) return null;
 
@@ -256,48 +262,58 @@ const App: React.FC = () => {
       avatar: dbUser.avatar_url ?? fallback.avatar,
       mustChangePassword: false,
       googleCalendarConnected: false,
-    };
+      username: (dbUser.email ? dbUser.email.split("@")[0] : fallback.name) as any,
+      password: "" as any,
+      phoneNumber: (dbUser as any).phone_number ?? "",
+      birthDate: (dbUser as any).birth_date ? String((dbUser as any).birth_date).slice(0,10) : "",
+      googleCalendarConnected: !!(dbUser as any).google_calendar_connected,
+
+    } as any;
   }, [dbUser, sessionUser?.id, sessionUser?.email]);
 
-
-
-  
-useEffect(() => {
-  setAppReady(true);
-}, []);
-
   
 
+  useEffect(() => setAppReady(true), []);
 
-const lastUidRef = useRef<string | null>(null);
+   const assignmentsByBoat = useMemo(() => {
+  const m = new Map<string, Assignment[]>();
+  for (const a of assignments) {
+    const arr = m.get(a.boatId) ?? [];
+    arr.push(a);
+    m.set(a.boatId, arr);
+  }
+  // ordina per data
+  for (const [k, arr] of m.entries()) {
+    arr.sort((x, y) => x.date.localeCompare(y.date));
+    m.set(k, arr);
+  }
+  return m;
+}, [assignments]);
 
-useEffect(() => {
+
+  // --- GET OR CREATE dbUser ---
+  const lastUidRef = useRef<string | null>(null);
+  const notificationPanelRef = useRef<HTMLDivElement | null>(null);
+
+
+  useEffect(() => {
   const uid = session?.user?.id ?? null;
-  const email = session?.user?.email ?? null;
+  const mail = session?.user?.email ?? null;
 
-  console.log("GET-OR-CREATE effect fired. uid =", uid);
-
-  // Logout / nessuna sessione
   if (!uid) {
-    lastUidRef.current = null;
     setDbUser(null);
     return;
   }
 
-  // Se ho già processato questo uid, non rifaccio niente
-  if (lastUidRef.current === uid) return;
-  lastUidRef.current = uid;
-
   let cancelled = false;
 
   (async () => {
+    // 1) prova a leggere SEMPRE dal DB (così vedi subito role/is_admin aggiornati)
     const { data: existing, error: selErr } = await supabase
       .from("users")
       .select("*")
       .eq("auth_id", uid)
       .maybeSingle();
-
-    console.log("GET-OR-CREATE select result:", { existing, selErr });
 
     if (cancelled) return;
 
@@ -307,38 +323,19 @@ useEffect(() => {
     }
 
     if (existing) {
-  setDbUser(existing);
-  return;
-}
+      setDbUser(existing);
+      return;
+    }
 
-const { data: notesData, error: notesErr } = await supabase
-  .from("day_notes")
-  .select("*")
-  .order("created_at", { ascending: true });
+    // 2) se non esiste, crealo con default sensati
+    const payload = { auth_id: uid, email: mail, role: "HELPER", is_admin: false };
 
-console.log("[A5][LOAD day_notes] rows:", (notesData ?? []).length, "error:", notesErr);
-if (notesErr) return;
-
-setDayNotes(
-  (notesData ?? []).map((r: any) => ({
-    id: r.id,
-    date: String(r.date).slice(0, 10),
-    userId: r.user_id,
-    text: r.text,
-    createdAt: new Date(r.created_at).getTime(),
-  }))
-);
-
-
-    const payload = { auth_id: uid, email };
 
     const { data: created, error: insErr } = await supabase
       .from("users")
       .insert(payload)
       .select("*")
       .single();
-
-    console.log("GET-OR-CREATE insert result:", { created, insErr });
 
     if (cancelled) return;
 
@@ -353,123 +350,87 @@ setDayNotes(
   return () => {
     cancelled = true;
   };
-}, [session?.user?.id]); // dipendenza MINIMA
-
-
-
-
-  // 2) Mappa dbUser -> User “interno” (per far funzionare tutto il resto dell’app)
-  useEffect(() => {
-    if (!dbUser) {
-      setUsers([]);
-      return;
-    }
-
-    const mapped: User = {
-      id: dbUser.auth_id,
-      name: dbUser.name ?? (dbUser.email ? dbUser.email.split("@")[0] : "utente"),
-      email: dbUser.email ?? "",
-      role: (dbUser.role as Role) ?? Role.HELPER,
-      isAdmin: !!dbUser.is_admin,
-      avatar:
-        dbUser.avatar_url ??
-        `https://api.dicebear.com/7.x/avataaars/svg?seed=${dbUser.email || dbUser.auth_id}`,
-      mustChangePassword: false,
-      googleCalendarConnected: false,
-      // campi opzionali nel tuo type User
-      username: dbUser.email ? dbUser.email.split("@")[0] : "utente",
-      password: "",
-      phoneNumber: "",
-      birthDate: "",
-    };
-
-    setUsers([mapped]);
-  }, [dbUser?.id]);
-
-
-
-
-const loggedUidRef = useRef<string | null>(null);
+}, [session?.user?.id, session?.user?.email]);
 
 useEffect(() => {
+  if (!DEV) return;
+  if (!dbUser) return;
+  console.log("DB USER role/is_admin:", dbUser.role, dbUser.is_admin);
+}, [dbUser, DEV]);
+
+
+
+
+    useEffect(() => {
   const uid = session?.user?.id ?? null;
-  if (!uid) {
-    loggedUidRef.current = null;
-    return;
-  }
-  if (loggedUidRef.current === uid) return;
-  loggedUidRef.current = uid;
+  if (!uid) return;
 
-  console.log("AUTH SESSION USER:", session?.user ?? null);
-  console.log("DB USER (public.users):", dbUser ?? null);
-  console.log("SESSION USER ID:", uid);
-  console.log("CURRENT USER:", currentUser ?? null);
-}, [session?.user?.id, dbUser, currentUser]);
-
-
- useEffect(() => {
   let cancelled = false;
 
   (async () => {
     const { data, error } = await supabase
-      .from("calendar_events")
-      .select(`
-        id,
-        boat_id,
-        title,
-        start_date,
-        end_date,
-        type,
-        activity_id,
-        boats:boat_id ( id, name ),
-        activities:activity_id ( id, name )
-      `)
-      .order("start_date", { ascending: true });
-
-    console.log("[A3][LOAD calendar_events] rows:", data?.length ?? 0, "error:", error);
+      .from("users")
+      .select("*")
+      .eq("auth_id", uid)
+      .maybeSingle();
 
     if (cancelled) return;
-
     if (error) {
-      console.error("[A3] calendar_events load error:", error);
+      console.error("[REFRESH dbUser] error:", error);
       return;
     }
-
-    const mapped: CalendarEvent[] = (data ?? []).map((r: any) => ({
-      id: r.id,
-      boatId: r.boat_id,
-      title: r.title,
-      startDate: r.start_date,
-      endDate: r.end_date ?? r.start_date,
-      type: r.type ?? null,
-      activityId: r.activity_id ?? null,
-      boatName: r.boats?.name ?? null,
-      activityName: r.activities?.name ?? null,
-    }));
-
-    setCalendarEvents(mapped);
-
-    // log “di conferma” super leggibile
-    if (mapped.length) {
-      console.log("[A3][LOAD sample mapped]", mapped[0]);
-    }
+    if (data) setDbUser(data);
   })();
 
   return () => {
     cancelled = true;
   };
-}, []);
+}, [session?.user?.id, isLoggedIn]);
 
 
 
- 
+  // 2) dbUser -> users[] (interno)
 
-  // --- EFFECTS LOGICI ---
   useEffect(() => {
-    if (notificationToast) {
-      const timer = setTimeout(() => setNotificationToast(null), 4000);
-      return () => clearTimeout(timer);
-    }
+  if (!isLoggedIn) return;
+  loadUsersFromDb();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [isLoggedIn, dbUser?.id]);
+
+
+
+useEffect(() => {
+  if (!isNotificationOpen) return;
+
+  const onPointerDown = (e: MouseEvent | TouchEvent) => {
+    const el = notificationPanelRef.current;
+    if (!el) return;
+
+    const target = e.target as Node | null;
+    if (!target) return;
+
+    // se clicco DENTRO al pannello, non chiudo
+    if (el.contains(target)) return;
+
+    // altrimenti chiudo
+    setIsNotificationOpen(false);
+  };
+
+  // pointerdown è più affidabile (chiude subito, anche su touch)
+  document.addEventListener("pointerdown", onPointerDown);
+
+  return () => {
+    document.removeEventListener("pointerdown", onPointerDown);
+  };
+}, [isNotificationOpen]);
+
+
+
+  // --- Toast auto hide ---
+  useEffect(() => {
+    if (!notificationToast) return;
+    const timer = setTimeout(() => setNotificationToast(null), 4000);
+    return () => clearTimeout(timer);
   }, [notificationToast]);
 
   const nextMonthDate = addMonths(new Date(), 1);
@@ -511,39 +472,53 @@ useEffect(() => {
     }
   };
 
+
+  const hasNextMonthAvailability = (userId: string, avs: Availability[]) => {
+  const nextMonth = addMonths(new Date(), 1);
+  const year = nextMonth.getFullYear();
+  const month = nextMonth.getMonth();
+
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month + 1, 0);
+  const days = eachDayOfInterval({ start, end });
+  const weekends = days.filter(isWeekend);
+
+  // basta almeno 1 entry nel mese prossimo (come facevi già tu)
+  return weekends.some((day) => {
+    const dStr = format(day, "yyyy-MM-dd");
+    return avs.some((a) => a.userId === userId && String(a.date).slice(0, 10) === dStr);
+  });
+};
+
+
   const checkNextMonthAvailability = () => {
-    if (!currentUser) return;
+  if (!currentUser) return;
 
-    const year = nextMonthDate.getFullYear();
-    const month = nextMonthDate.getMonth();
-    const startNextMonth = new Date(year, month, 1);
-    const endNextMonth = new Date(year, month + 1, 0);
-    const daysInNextMonth = eachDayOfInterval({ start: startNextMonth, end: endNextMonth });
+  // MANAGER: non devono compilare -> niente popup
+  const role = String(currentUser.role ?? "").toUpperCase();
+  if (role === "MANAGER") return;
 
-    const weekends = daysInNextMonth.filter(isWeekend);
+  const next = addMonths(new Date(), 1);
+  const year = next.getFullYear();
+  const month = next.getMonth();
 
-    const hasEntries = weekends.some((day) => {
-      const dStr = format(day, "yyyy-MM-dd");
-      return availabilities.some((a) => a.userId === currentUser.id && a.date === dStr);
-    });
+  const startNextMonth = new Date(year, month, 1);
+  const endNextMonth = new Date(year, month + 1, 0);
 
-    if (!hasEntries && weekends.length > 0) {
-      setShowAvailabilityAlert(true);
+  // se vuoi SOLO weekend:
+  const daysInNextMonth = eachDayOfInterval({ start: startNextMonth, end: endNextMonth });
+  const targetDays = daysInNextMonth.filter(isWeekend);
 
-      if (currentUser.email) {
-        setTimeout(() => {
-          setNotificationToast({
-            message: `📧 Email automatica inviata a ${currentUser.email}: "Inserisci disponibilità per ${format(
-              nextMonthDate,
-              "MMMM",
-              { locale: it }
-            )}!"`,
-            type: "error",
-          });
-        }, 500);
-      }
-    }
-  };
+  // almeno una disponibilità nel mese successivo (solo weekend)
+  const hasEntries = targetDays.some((day) => {
+    const dStr = format(day, "yyyy-MM-dd");
+    return availabilities.some((a) => a.userId === currentUser.id && a.date === dStr);
+  });
+
+  setShowAvailabilityAlert(!hasEntries && targetDays.length > 0);
+};
+
+
 
   const checkMaintenanceExpirations = () => {
     if (!currentUser?.isAdmin) return;
@@ -556,7 +531,7 @@ useEffect(() => {
 
     if (expiringRecords.length > 0) {
       const record = expiringRecords[0];
-      const boat = boats.find((b) => b.id === record.boatId);
+      const boat = boats.find(b => b.id === record.boatId);
       const moreCount = expiringRecords.length - 1;
 
       setTimeout(() => {
@@ -566,327 +541,230 @@ useEffect(() => {
           }`,
           type: "error",
         });
-      }, 1000);
+      }, 800);
     }
   };
 
+  // ✅ LOAD DATI (UNA SOLA VOLTA, non duplicata)
+  useEffect(() => {
+    if (!isLoggedIn) return;
 
- useEffect(() => {
-  if (!isLoggedIn) return;
+    let cancelled = false;
 
-  (async () => {
-    // --- BOATS ---
-    const { data: boatsData, error: boatsErr } = await supabase
-      .from("boats")
-      .select("id,name,type,image")
-      .order("name", { ascending: true });
+    (async () => {
+      // BOATS
+      const { data: boatsData, error: boatsErr } = await supabase
+        .from("boats")
+        .select("id,name,type,image")
+        .order("name", { ascending: true });
 
-    console.log(
-      "[A4][LOAD boats] rows:",
-      (boatsData ?? []).length,
-      "error:",
-      boatsErr
-    );
-    console.log("[A4][LOAD boats sample]", (boatsData ?? [])[0]);
+      if (!cancelled) {
+        if (boatsErr) console.error("[LOAD boats] error:", boatsErr);
+        else {
+          setBoats(
+            (boatsData ?? []).map((b: any) => {
+              const raw = String(b.type ?? "").trim().toUpperCase();
+              const normalizedType =
+                raw === "VELA"
+                  ? "VELA"
+                  : raw === "MOTORE"
+                  ? "MOTORE"
+                  : raw.includes("VEL")
+                  ? "VELA"
+                  : raw.includes("MOT")
+                  ? "MOTORE"
+                  : "VELA";
 
-    if (boatsErr) return;
+              return { id: b.id, name: b.name, type: normalizedType, image: b.image ?? "" } as any;
+            })
+          );
+        }
+      }
 
-    setBoats(
-  (boatsData ?? []).map((b: any) => {
-    const raw = String(b.type ?? "").trim().toUpperCase();
+      // ACTIVITIES
+      const { data: actsData, error: actsErr } = await supabase
+        .from("activities")
+        .select("*")
+        .order("name", { ascending: true });
 
-    const normalizedType =
-      raw === "VELA" ? "VELA" :
-      raw === "MOTORE" ? "MOTORE" :
-      // fallback “furbo” se qualcuno scrive robe strane
-      raw.includes("VEL") ? "VELA" :
-      raw.includes("MOT") ? "MOTORE" :
-      "VELA";
+      if (!cancelled) {
+        if (actsErr) console.error("[LOAD activities] error:", actsErr);
+        else {
+          const mappedActs = (actsData ?? []).map((a: any) => ({
+            ...a,
+            allowedBoatTypes: Array.isArray(a.allowedBoatTypes)
+              ? a.allowedBoatTypes
+              : Array.isArray(a.allowed_boat_types)
+              ? a.allowed_boat_types
+              : [],
+            defaultDurationDays: a.defaultDurationDays ?? a.default_duration_days ?? 1,
+            isGeneral: a.isGeneral ?? a.is_general ?? false,
+          }));
+          setActivities(mappedActs);
+        }
+      }
 
-    return {
-      id: b.id,
-      name: b.name,
-      type: normalizedType,     // <-- ORA combacia con l'enum (VELA/MOTORE)
-      image: b.image ?? "",
+      // AVAILABILITIES
+      const { data: avRows, error: avErr } = await supabase
+        .from("availabilities")
+        .select("*")
+        .order("date", { ascending: true });
+
+      if (!cancelled) {
+        if (avErr) console.error("[LOAD availabilities] error:", avErr);
+        else {
+          setAvailabilities(
+            (avRows ?? []).map((r: any) => ({
+              userId: r.user_id,
+              date: String(r.date).slice(0, 10),
+              status: r.status as AvailabilityStatus,
+            }))
+          );
+          setAvailabilitiesLoaded(true);
+        
+        }
+      }
+
+      // ASSIGNMENTS
+      const { data: asgRows, error: asgErr } = await supabase
+        .from("assignments")
+        .select("*")
+        .order("start_date", { ascending: true });
+
+        console.log("[ASSIGNMENTS][LOAD] rows:", (asgRows ?? []).length);
+        console.log("[ASSIGNMENTS][LOAD] error:", asgErr);
+        if ((asgRows ?? [])[0]) console.log("[ASSIGNMENTS][LOAD] sample:", (asgRows as any[])[0]);
+
+
+      if (!cancelled) {
+        if (asgErr) console.error("[LOAD assignments] error:", asgErr);
+        else {
+          setAssignments(
+            (asgRows ?? []).map((r: any) => ({
+              id: r.id,
+              date: String(r.start_date ?? r.date).slice(0, 10),
+              boatId: r.boat_id,
+              instructorId: r.instructor_id ?? null,
+              helperId: r.helper_id ?? null,
+              activityId: r.activity_id ?? null,
+              durationDays: r.duration_days ?? 1,
+              status: (r.status as AssignmentStatus) ?? AssignmentStatus.CONFIRMED,
+              instructorStatus: r.instructor_status ?? undefined,
+              helperStatus: r.helper_status ?? undefined,
+              notes: r.notes ?? undefined,
+              
+            }))
+            
+          );
+        }
+      }
+
+      // DAY NOTES
+      const { data: notesData, error: notesErr } = await supabase
+        .from("day_notes")
+        .select("*")
+        .order("created_at", { ascending: true });
+
+      if (!cancelled) {
+        if (notesErr) console.error("[LOAD day_notes] error:", notesErr);
+        else {
+          setDayNotes(
+            (notesData ?? []).map((r: any) => ({
+              id: r.id,
+              date: String(r.date).slice(0, 10),
+              userId: r.user_id,
+              text: r.text,
+              createdAt: new Date(r.created_at).getTime(),
+            }))
+          );
+        }
+      }
+
+      // CALENDAR EVENTS
+      const { data: eventsData, error: evErr } = await supabase
+        .from("calendar_events")
+        .select("*")
+        .order("start_date", { ascending: true });
+
+      if (!cancelled) {
+        if (evErr) console.error("[LOAD calendar_events] error:", evErr);
+        else {
+          const mapped: CalendarEvent[] = (eventsData ?? []).map((r: any) => ({
+            id: r.id,
+            boatId: r.boat_id,
+            title: r.title,
+            startDate: String(r.start_date).slice(0, 10),
+            endDate: String(r.end_date ?? r.start_date).slice(0, 10),
+            type: r.type ?? null,
+            activityId: r.activity_id ?? null,
+            createdBy: r.created_by ?? null,
+            createdAt: r.created_at ?? null,
+          }));
+          setCalendarEvents(mapped);
+          if (mapped.length) console.log("[A3][LOAD sample mapped]", mapped[0]);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
     };
-  })
-);
-
-
-    // --- ACTIVITIES ---
-    const { data: actsData, error: actsErr } = await supabase
-      .from("activities")
-      .select("*")
-      .order("name", { ascending: true });
-
-    console.log(
-      "[A4][LOAD activities] rows:",
-      (actsData ?? []).length,
-      "error:",
-      actsErr
-    );
-
-    if (actsErr) return;
-
-    const mappedActs = (actsData ?? []).map((a: any) => ({
-  ...a,
-  allowedBoatTypes: Array.isArray(a.allowedBoatTypes)
-    ? a.allowedBoatTypes
-    : Array.isArray(a.allowed_boat_types)
-    ? a.allowed_boat_types
-    : [],
-  defaultDurationDays: a.defaultDurationDays ?? a.default_duration_days ?? 1,
-  isGeneral: a.isGeneral ?? a.is_general ?? false,
-}));
-
-setActivities(mappedActs);
-
-
-    // --- A5: LOAD assignments ---
-    const { data: asgRows, error: asgErr } = await supabase
-  .from("assignments")
-  .select("*")
-  .order("start_date", { ascending: true });
-
-console.log("[A12][LOAD assignments] rows:", (asgRows ?? []).length, "error:", asgErr);
-if (asgErr) return;
-
-setAssignments(
-  (asgRows ?? []).map((r: any) => ({
-    id: r.id,
-    date: r.start_date,                 // <-- QUESTA è la chiave
-    boatId: r.boat_id,
-    instructorId: r.instructor_id ?? null,
-    helperId: r.helper_id ?? null,
-    activityId: r.activity_id ?? null,
-    durationDays: r.duration_days ?? 1,
-    status: r.status ?? "CONFIRMED",
-    notes: r.notes ?? "",
-  }))
-);
+  }, [isLoggedIn]);
 
 
 
-  })();
-}, [isLoggedIn]);
-
-
-// A5) LOAD availabilities (DB -> state)
+// carico eventi generali quando loggato + quando cambia la lista utenti (per avere responses coerenti)
 useEffect(() => {
   if (!isLoggedIn) return;
+  loadGeneralEventsFromDb();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [isLoggedIn, users.length]);
 
-  let cancelled = false;
+    useEffect(() => {
+  if (!isLoggedIn || !currentUser?.id) return;
 
-  (async () => {
-    const { data, error } = await supabase
-      .from("availabilities")
-      .select("*")
-      .order("date", { ascending: true });
+  // 1) load iniziale
+  loadNotificationsFromDb(currentUser.id);
 
-    console.log("[A5][LOAD availabilities] rows:", (data ?? []).length, "error:", error);
-    if (error || cancelled) return;
 
-    setAvailabilities(
-      (data ?? []).map((r: any) => ({
-        userId: r.user_id,
-        date: String(r.date), // "YYYY-MM-DD"
-        status: r.status as AvailabilityStatus,
-      }))
-    );
-  })();
+  // 2) realtime
+  const channel = supabase
+    .channel(`notifications-live:${currentUser.id}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${currentUser.id}`,
+      },
+      () => {
+        loadNotificationsFromDb(currentUser.id);
+
+      }
+    )
+    .subscribe();
 
   return () => {
-    cancelled = true;
+    supabase.removeChannel(channel);
   };
-}, [isLoggedIn]);
-
-// A5) LOAD assignments (DB -> state)
-useEffect(() => {
-  if (!isLoggedIn) return;
-
-  let cancelled = false;
-
-  (async () => {
-    const { data, error } = await supabase
-      .from("assignments")
-      .select("*")
-      .order("date", { ascending: true });
-
-    console.log("[A5][LOAD assignments] rows:", (data ?? []).length, "error:", error);
-    if (error || cancelled) return;
-
-    setAssignments(
-      (data ?? []).map((r: any) => ({
-        id: r.id,
-        date: String(r.start_date ?? r.date),
-        boatId: r.boat_id,
-        instructorId: r.instructor_id ?? null,
-        helperId: r.helper_id ?? null,
-        activityId: r.activity_id ?? null,
-        durationDays: r.duration_days ?? 1,
-        status: (r.status as AssignmentStatus) ?? AssignmentStatus.CONFIRMED,
-        instructorStatus: r.instructor_status ?? undefined,
-        helperStatus: r.helper_status ?? undefined,
-        notes: r.notes ?? undefined,
-      }))
-    );
-  })();
-
-  return () => {
-    cancelled = true;
-  };
-}, [isLoggedIn]);
-
-
-
-useEffect(() => {
-  if (!isLoggedIn) return;
-
-  (async () => {
-    const { data, error } = await supabase
-      .from("day_notes")
-      .select("*")
-      .order("created_at", { ascending: true });
-
-    console.log("[A5][LOAD day_notes] rows:", (data ?? []).length, "error:", error);
-    if (error) return;
-
-    setDayNotes(
-      (data ?? []).map((r: any) => ({
-        id: r.id,
-        date: String(r.date),
-        userId: r.user_id,
-        text: r.text,
-        createdAt: new Date(r.created_at).getTime(),
-      }))
-    );
-  })();
-}, [isLoggedIn]);
-
-
-
-
-
- useEffect(() => {
-  if (!isLoggedIn || !currentUser) return;
-
-  checkNextMonthAvailability();
-  checkMaintenanceExpirations();
-  checkForBirthdays();
 }, [isLoggedIn, currentUser?.id]);
 
 
 
-useEffect(() => {
-  if (!isLoggedIn) return;
+  useEffect(() => {
+    if (!isLoggedIn || !currentUser) return;
+    checkNextMonthAvailability();
+    checkMaintenanceExpirations();
+    checkForBirthdays();
+  }, [isLoggedIn, currentUser?.id, currentUser?.role, boats.length, maintenanceRecords.length, availabilities.length, users.length]);
 
-  let cancelled = false;
-
-  (async () => {
-    // 1) Boats
-    const { data: boatsData, error: boatsErr } = await supabase
-      .from("boats")
-      .select("*")
-      .order("name", { ascending: true });
-
-    if (boatsErr) {
-      console.error("boats load error:", boatsErr);
-    } else if (!cancelled) {
-      // Se vuoi mapping strong qui sotto (type/image), dimmelo e lo facciamo,
-      // per ora lasciamo il raw se ti va bene.
-      setBoats(boatsData ?? []);
-    }
-
-    // 2) Activities
-    const { data: activitiesData, error: actErr } = await supabase
-      .from("activities")
-      .select("*")
-      .order("name", { ascending: true });
-
-    if (actErr) {
-      console.error("activities load error:", actErr);
-    } else if (!cancelled) {
-      const mappedActivities = (activitiesData ?? []).map((a: any) => ({
-        id: a.id,
-        name: a.name,
-
-        // DB: allowed_boat_types (array) | fallback: allowedBoatTypes
-        allowedBoatTypes: Array.isArray(a.allowedBoatTypes)
-          ? a.allowedBoatTypes
-          : Array.isArray(a.allowed_boat_types)
-          ? a.allowed_boat_types
-          : [],
-
-        // DB: default_duration_days | fallback: defaultDurationDays
-        defaultDurationDays:
-          typeof a.defaultDurationDays === "number"
-            ? a.defaultDurationDays
-            : typeof a.default_duration_days === "number"
-            ? a.default_duration_days
-            : 1,
-
-        // DB: is_general | fallback: isGeneral
-        isGeneral:
-          typeof a.isGeneral === "boolean"
-            ? a.isGeneral
-            : typeof a.is_general === "boolean"
-            ? a.is_general
-            : false,
-      }));
-
-      setActivities(mappedActivities);
-      console.log("[A4][LOAD activities mapped] sample:", mappedActivities[0]);
-    }
-
-    // 3) Calendar events
-    const { data: eventsData, error: evErr } = await supabase
-      .from("calendar_events")
-      .select("*")
-      .order("start_date", { ascending: true });
-
-    if (evErr) {
-      console.error("calendar_events load error:", evErr);
-    } else if (!cancelled) {
-      const mapped = (eventsData ?? []).map((r: any) => ({
-        id: r.id,
-        boatId: r.boat_id,
-        title: r.title,
-        startDate: r.start_date,
-        endDate: r.end_date,
-        type: r.type,
-        createdBy: r.created_by,
-        createdAt: r.created_at,
-      }));
-
-      setCalendarEvents(mapped);
-    }
-  })();
-
-  return () => {
-    cancelled = true;
-  };
-}, [isLoggedIn]);
-
-
-
-
-
-
-  // --- FUNZIONI CRUD LOCALI (come nel tuo file) ---
-  const handleForcePasswordChange = (newPassword: string) => {
-    if (!pendingUser) return;
-    const updatedUser = { ...pendingUser, password: newPassword, mustChangePassword: false };
-    setUsers((prev) => prev.map((u) => (u.id === pendingUser.id ? updatedUser : u)));
-    setPendingUser(null);
-    setNotificationToast({ message: "Password impostata! Benvenuto a bordo." });
-  };
-
+  // --- ACTIONS ---
   const handleLogout = async () => {
     await supabase.auth.signOut();
 
     setSelectedDate(null);
     setIsProfileOpen(false);
-    setPendingUser(null);
     setIsUserManagementOpen(false);
     setIsFleetManagementOpen(false);
     setIsNotificationOpen(false);
@@ -897,180 +775,415 @@ useEffect(() => {
   };
 
   const handleUpdateAvailability = async (newAvailability: Availability) => {
-  // 1) aggiorno lo state subito (UI reattiva)
-  setAvailabilities((prev) => {
-    const idx = prev.findIndex(
-      (a) => a.userId === newAvailability.userId && a.date === newAvailability.date
-    );
-    if (idx >= 0) {
-      const copy = [...prev];
-      copy[idx] = newAvailability;
-      return copy;
-    }
-    return [...prev, newAvailability];
-  });
+    setAvailabilities((prev) => {
+      const idx = prev.findIndex(
+        (a) => a.userId === newAvailability.userId && a.date === newAvailability.date
+      );
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = newAvailability;
+        return copy;
+      }
+      return [...prev, newAvailability];
+    });
 
-  // 2) persisto su Supabase (unique(user_id,date) -> upsert)
-  const payload = {
-    user_id: newAvailability.userId,
-    date: newAvailability.date,
-    status: newAvailability.status,
+    const payload = {
+      user_id: newAvailability.userId,
+      date: newAvailability.date,
+      status: newAvailability.status,
+    };
+
+    const { error } = await supabase
+      .from("availabilities")
+      .upsert(payload, { onConflict: "user_id,date" })
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      console.error("[UPSERT availabilities] error:", error, payload);
+      setNotificationToast({ message: "Errore salvataggio disponibilità (DB).", type: "error" });
+    }
   };
 
-  const { error } = await supabase
-    .from("availabilities")
-    .upsert(payload, { onConflict: "user_id,date" })
-    .select("*")
-    .maybeSingle();
+  // App.tsx
 
-  if (error) {
-    console.error("[A5][UPSERT availabilities] error:", error, payload);
-    setNotificationToast({ message: "Errore salvataggio disponibilità (DB).", type: "error" });
-  } else {
-    console.log("[A5][UPSERT availabilities] ok:", payload);
+const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
+  try {
+    const authId = userId;
+
+    // 1) PATCH public.users
+    const patch: any = {};
+    if (typeof updates.name === "string") patch.name = updates.name.trim();
+    if (typeof updates.email === "string") patch.email = updates.email.trim() || null;
+    if (typeof updates.phoneNumber === "string") patch.phone_number = updates.phoneNumber.trim() || null;
+    if (typeof updates.birthDate === "string") patch.birth_date = updates.birthDate || null;
+    if (typeof updates.role !== "undefined") patch.role = updates.role;
+    if (typeof updates.isAdmin === "boolean") patch.is_admin = updates.isAdmin;
+    if (typeof updates.avatar === "string") patch.avatar_url = updates.avatar;
+
+    if (Object.keys(patch).length) {
+      const { error } = await supabase.from("users").update(patch).eq("auth_id", authId);
+      if (error) {
+        console.error("[USERS][update] DB error:", error);
+        setNotificationToast({ message: `Errore salvataggio utente: ${error.message}`, type: "error" });
+        return;
+      }
+    }
+
+    // 2) password reset (se presente)
+    const passRaw = (updates as any)?.password;
+    const newPass = typeof passRaw === "string" ? passRaw.trim() : "";
+    if (newPass.length) {
+      const { data: sess, error: sessErr } = await supabase.auth.getSession();
+      
+      const token = sess?.session?.access_token;
+
+      if (sessErr || !token) {
+        console.error("[USERS][pwd] session error:", sessErr);
+        setNotificationToast({ message: "Sessione non disponibile per reset password.", type: "error" });
+        return;
+      }
+
+      const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`;
+
+      const res = await fetch(fnUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: "set_password",
+          auth_id: authId,
+          password: newPass,
+          must_change_password: !!(updates as any).mustChangePassword,
+        }),
+      });
+
+      const text = await res.text();
+      let json: any = null;
+      try { json = JSON.parse(text); } catch {}
+
+      if (!res.ok) {
+        console.error("[USERS][pwd] HTTP", res.status, text);
+        setNotificationToast({
+          message: json?.error ? `Errore password: ${json.error}` : `Errore reset password (HTTP ${res.status})`,
+          type: "error",
+        });
+        return;
+      }
+    }
+
+    setUsers(prev =>
+  prev.map(u =>
+    u.id === authId
+      ? { ...u, ...updates }
+      : u
+  )
+);
+
+
+    // riallinea dbUser se sto modificando me stesso
+    if (currentUser && authId === currentUser.id) {
+      const { data } = await supabase.from("users").select("*").eq("auth_id", authId).maybeSingle();
+      if (data) setDbUser(data as any);
+    }
+
+    setNotificationToast({ message: "Utente aggiornato ✅", type: "success" });
+  } catch (e) {
+    console.error("[USERS][update] unexpected:", e);
+    setNotificationToast({ message: "Errore inatteso aggiornamento utente.", type: "error" });
   }
 };
 
 
 
-const handleUpdateAssignment = async (newAssignment: Assignment) => {
-  // 1) state update
-  setAssignments((prev) => {
-    const existingById = prev.findIndex((a) => a.id === newAssignment.id);
-    if (existingById >= 0) {
-      const updated = [...prev];
-      updated[existingById] = newAssignment;
-      return updated;
+
+  const handleUpdateAssignment = async (newAssignment: Assignment) => {
+    // UI ottimistica
+    setAssignments((prev) => {
+      const existingById = prev.findIndex((a) => a.id === newAssignment.id);
+      if (existingById >= 0) {
+        const updated = [...prev];
+        updated[existingById] = newAssignment;
+        return updated;
+      }
+      const existingByKey = prev.findIndex(
+        (a) => a.boatId === newAssignment.boatId && a.date === newAssignment.date
+      );
+      if (existingByKey >= 0) {
+        const updated = [...prev];
+        updated[existingByKey] = newAssignment;
+        return updated;
+      }
+      return [...prev, newAssignment];
+    });
+
+    const payload = {
+      id: newAssignment.id,
+      boat_id: newAssignment.boatId,
+      date: newAssignment.date,
+      start_date: newAssignment.date,
+      instructor_id: toUuidOrNull(newAssignment.instructorId),
+      helper_id: toUuidOrNull(newAssignment.helperId),
+      activity_id: toUuidOrNull(newAssignment.activityId),
+      duration_days: newAssignment.durationDays ?? 1,
+      status: newAssignment.status ?? AssignmentStatus.CONFIRMED,
+      instructor_status: newAssignment.instructorId ? (newAssignment.instructorStatus ?? "PENDING") : null,
+      helper_status: newAssignment.helperStatus ?? null,
+      notes: newAssignment.notes ?? null,
+    };
+    console.log("[ASSIGNMENTS][SAVE] payload:", payload);
+
+
+    const { data, error } = await supabase
+      .from("assignments")
+      .upsert(payload, { onConflict: "boat_id,date" })
+      .select("*")
+      .single();
+
+      if (data?.id) {
+      const { data: checkRow, error: checkErr } = await supabase
+        .from("assignments")
+        .select("*")
+        .eq("id", data.id)
+        .maybeSingle();
+
+  console.log("[ASSIGNMENTS][VERIFY] row:", checkRow);
+  console.log("[ASSIGNMENTS][VERIFY] err:", checkErr);
+}
+
+
+      console.log("[ASSIGNMENTS][SAVE] result data:", data);
+      console.log("[ASSIGNMENTS][SAVE] result error:", error);
+
+
+   if (error || !data) {
+  console.error("[UPSERT assignments] error:", error, payload);
+
+  const msg =
+    error?.code === "23505"
+      ? "🚫 Questa persona è già assegnata a un’altra barca in quella data."
+      : "Errore salvataggio missione (DB).";
+
+  setNotificationToast({ message: msg, type: "error" });
+  return;
+}
+
+
+// --- CREA NOTIFICHE (richiesta conferma incarico) ---
+try {
+  const instructorId = toUuidOrNull(newAssignment.instructorId);
+  const helperId = toUuidOrNull(newAssignment.helperId);
+
+  const notifsToCreate: any[] = [];
+  const nowIso = new Date().toISOString();
+
+  if (instructorId) {
+    const refKey = `ASSIGNMENT_REQUEST:${newAssignment.id}:INSTRUCTOR`;
+    notifsToCreate.push({
+      user_id: instructorId,
+      type: NotificationType.ASSIGNMENT_REQUEST,
+      ref_key: refKey,
+      message: `Nuovo incarico come COMANDANTE il ${newAssignment.date}`,
+      read: false,
+      data: { assignmentId: newAssignment.id, role: "INSTRUCTOR" },
+      created_at: nowIso,
+    });
+  }
+
+  if (helperId) {
+    const refKey = `ASSIGNMENT_REQUEST:${newAssignment.id}:HELPER`;
+    notifsToCreate.push({
+      user_id: helperId,
+      type: NotificationType.ASSIGNMENT_REQUEST,
+      ref_key: refKey,
+      message: `Nuovo incarico come AIUTANTE il ${newAssignment.date}`,
+      read: false,
+      data: { assignmentId: newAssignment.id, role: "HELPER" },
+      created_at: nowIso,
+    });
+  }
+
+  if (notifsToCreate.length) {
+    // upsert = se esiste già (grazie all'indice unique) non duplica
+    const { error: nErr } = await supabase
+      .from("notifications")
+      .upsert(notifsToCreate, { onConflict: "user_id,type,ref_key" });
+
+    if (nErr) console.error("[A13][UPSERT notifications] error:", nErr);
+    else {
+      // refresh UI locale solo se la notifica è per ME
+      await loadNotificationsFromDb();
     }
+  }
+} catch (e) {
+  console.error("[A13][UPSERT notifications] unexpected:", e);
+}
 
-    const existingByDate = prev.findIndex(
-      (a) => a.boatId === newAssignment.boatId && a.date === newAssignment.date
-    );
-    if (existingByDate >= 0) {
-      const updated = [...prev];
-      updated[existingByDate] = newAssignment;
-      return updated;
-    }
 
-    return [...prev, newAssignment];
-  });
 
-  // 2) DB payload (camelCase -> snake_case) + start_date allineato
-  const payload = {
-    id: newAssignment.id,
-    boat_id: newAssignment.boatId,
-    date: newAssignment.date,
-    start_date: newAssignment.date,
-    instructor_id: newAssignment.instructorId,
-    helper_id: newAssignment.helperId,
-    activity_id: newAssignment.activityId,
-    duration_days: newAssignment.durationDays ?? 1,
-    status: newAssignment.status ?? AssignmentStatus.CONFIRMED,
-    instructor_status: newAssignment.instructorStatus ?? null,
-    helper_status: newAssignment.helperStatus ?? null,
-    notes: newAssignment.notes ?? null,
+    // riallineo state con riga DB (stabile)
+    const saved: Assignment = {
+      id: data.id,
+      date: String(data.start_date ?? data.date).slice(0, 10),
+      boatId: data.boat_id,
+      instructorId: data.instructor_id ?? null,
+      helperId: data.helper_id ?? null,
+      activityId: data.activity_id ?? null,
+      durationDays: data.duration_days ?? 1,
+      status: (data.status as AssignmentStatus) ?? AssignmentStatus.CONFIRMED,
+      instructorStatus: data.instructor_status ?? undefined,
+      helperStatus: data.helper_status ?? undefined,
+      notes: data.notes ?? undefined,
+    };
+
+    setAssignments((prev) => {
+      const idx = prev.findIndex((a) => a.id === saved.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = saved;
+        return copy;
+      }
+      const idx2 = prev.findIndex((a) => a.boatId === saved.boatId && a.date === saved.date);
+      if (idx2 >= 0) {
+        const copy = [...prev];
+        copy[idx2] = saved;
+        return copy;
+      }
+      return [...prev, saved];
+    });
+
+    console.log("[UPSERT assignments] ok:", saved);
   };
 
-  const { data, error } = await supabase
-    .from("assignments")
-    .upsert(payload, { onConflict: "boat_id,date" })
-    .select("*")
-    .maybeSingle();
+  const handleDeleteAssignment = async (id: string) => {
+    if (!confirm("Sei sicuro di voler eliminare definitivamente questa missione?")) return;
+
+    setAssignments((prev) => prev.filter((a) => a.id !== id));
+    setNotificationToast({ message: "Missione eliminata dal registro.", type: "error" });
+
+    const { error } = await supabase.from("assignments").delete().eq("id", id);
+
+    if (error) {
+      console.error("[DELETE assignments] error:", error, { id });
+      setNotificationToast({ message: "Errore eliminazione missione (DB).", type: "error" });
+    }
+  };
+
+ const handleMarkNotificationRead = async (id: string) => {
+  // UI subito
+  setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+
+  // DB
+  const { error } = await supabase.from("notifications").update({ read: true }).eq("id", id);
+  if (error) console.error("[A8][UPDATE notifications read] error:", error);
+};
+
+const handleEventResponse = async (notification: UserNotification, isAccepted: boolean) => {
+  if (!currentUser) return;
+
+  const eventId = notification.data?.eventId;
+  if (!eventId) return;
+
+  const newStatus = isAccepted ? ConfirmationStatus.CONFIRMED : ConfirmationStatus.REJECTED;
+
+  const { error } = await supabase
+    .from("general_event_responses")
+    .upsert(
+      {
+        event_id: eventId,
+        user_id: currentUser.id,
+        status: newStatus,
+      },
+      { onConflict: "event_id,user_id" }
+    );
 
   if (error) {
-    console.error("[A13][UPSERT assignments] error:", error, payload);
-    setNotificationToast({ message: "Errore salvataggio missione (DB).", type: "error" });
+    console.error("[A8][UPSERT general_event_responses] error:", error);
+    setNotificationToast({ message: "Errore risposta invito", type: "error" });
     return;
   }
 
-  console.log("[A13][UPSERT assignments] ok:", data);
+  await handleMarkNotificationRead(notification.id);
+
+  // reload per vedere subito i conteggi nel DayModal
+  await loadGeneralEventsFromDb();
+  await loadNotificationsFromDb();
+
+  setNotificationToast({
+    message: isAccepted ? "Partecipazione confermata!" : "Invito declinato.",
+    type: "success",
+  });
 };
 
 
-  // 4) allinea lo state con ciò che torna dal DB (se vuoi essere super-stabile)
-  // (Supabase torna un array di righe)
-  const savedRow = (data ?? [])[0];
-  if (!savedRow) return;
+const handleAssignmentResponse = async (notif: UserNotification, accepted: boolean) => {
+  const assignmentId = (notif as any)?.data?.assignmentId ?? (notif as any)?.data?.assignment_id;
+  const role = (notif as any)?.data?.role; // "INSTRUCTOR" | "HELPER"
 
-  const saved: Assignment = {
-    id: savedRow.id,
-    date: String(savedRow.date),
-    boatId: savedRow.boat_id,
-    instructorId: savedRow.instructor_id ?? null,
-    helperId: savedRow.helper_id ?? null,
-    activityId: savedRow.activity_id ?? null,
-    durationDays: savedRow.duration_days ?? 1,
-    status: (savedRow.status as AssignmentStatus) ?? AssignmentStatus.CONFIRMED,
-    instructorStatus: savedRow.instructor_status ?? undefined,
-    helperStatus: savedRow.helper_status ?? undefined,
-    notes: savedRow.notes ?? undefined,
-  };
+  if (!assignmentId || !role) {
+    console.error("[A14] notif missing assignmentId/role", notif);
+    return;
+  }
 
+  setIsNotificationOpen(false);
+  await loadNotificationsFromDb();
+
+
+  const newStatus = accepted ? "CONFIRMED" : "REJECTED";
+
+  // 1) UI ottimistica: aggiorno assignments state
   setAssignments((prev) =>
-    prev.map((a) => (a.id === saved.id ? saved : a))
+    prev.map((a) => {
+      if (a.id !== assignmentId) return a;
+
+      if (role === "INSTRUCTOR") return { ...a, instructorStatus: newStatus as any };
+      if (role === "HELPER") return { ...a, helperStatus: newStatus as any };
+
+      return a;
+    })
   );
 
-  console.log("[A13][UPSERT assignments] ok:", savedRow);
-};
+  // 2) DB: aggiorno la colonna giusta su assignments
+  const patch =
+    role === "INSTRUCTOR"
+      ? { instructor_status: newStatus }
+      : { helper_status: newStatus };
+
+  const { error: rpcErr } = await supabase.rpc("respond_assignment", {
+  p_assignment_id: assignmentId,
+  p_status: accepted ? "CONFIRMED" : "REJECTED",
+});
+
+if (rpcErr) {
+  console.error("[ASSIGNMENT][RPC] error:", rpcErr);
+  setNotificationToast({
+    message: "Errore nel confermare/rifiutare l’incarico.",
+    type: "error",
+  });
+  return;
+}
 
 
-
-
-
-const handleDeleteAssignment = async (id: string) => {
-  if (!confirm("Sei sicuro di voler eliminare definitivamente questa missione?")) return;
-
-  // 1) UI subito
-  setAssignments((prev) => prev.filter((a) => a.id !== id));
-  setNotificationToast({ message: "Missione eliminata dal registro.", type: "error" });
-
-  // 2) DB
-  const { error } = await supabase.from("assignments").delete().eq("id", id);
-
-  if (error) {
-    console.error("[A5][DELETE assignments] error:", error, { id });
-    setNotificationToast({ message: "Errore eliminazione missione (DB).", type: "error" });
-  } else {
-    console.log("[A5][DELETE assignments] ok:", { id });
+  if (asgErr) {
+    console.error("[A14][UPDATE assignments status] error:", asgErr);
+    setNotificationToast({ message: "Errore nel confermare/rifiutare l’incarico.", type: "error" });
+    return;
   }
+
+  // 3) DB + UI: segno la notifica come letta
+  await supabase.from("notifications").update({ read: true }).eq("id", notif.id);
+  setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n)));
+
+  setNotificationToast({
+    message: accepted ? "Incarico confermato ✅" : "Incarico rifiutato ❌",
+    type: accepted ? "success" : "error",
+  });
 };
 
 
-
-
-  const handleCreateGeneralEvent = (
-    date: string,
-    activityId: string,
-    startTime?: string,
-    endTime?: string,
-    notes?: string
-  ) => {
-    const act = activities.find((a) => a.id === activityId);
-    const newEvent: GeneralEvent = {
-      id: crypto.randomUUID(),
-      date,
-      activityId,
-      startTime,
-      endTime,
-      notes,
-      responses: users.map((u) => ({ userId: u.id, status: ConfirmationStatus.PENDING })),
-    };
-
-    setGeneralEvents((prev) => [...prev, newEvent]);
-    setNotificationToast({ message: `Evento "${act?.name}" creato! Inviti spediti a tutti.` });
-
-    const newNotifications: UserNotification[] = users.map((u) => ({
-      id: crypto.randomUUID(),
-      userId: u.id,
-      type: NotificationType.EVENT_INVITE,
-      message: `Invito: ${act?.name} il ${format(parseDate(date), "dd/MM")}`,
-      read: false,
-      data: { eventId: newEvent.id },
-      createdAt: Date.now(),
-    }));
-
-    setNotifications((prev) => [...newNotifications, ...prev]);
-  };
 
   const handleUpdateGeneralEvent = (updatedEvent: GeneralEvent) => {
     setGeneralEvents((prev) => prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e)));
@@ -1078,173 +1191,416 @@ const handleDeleteAssignment = async (id: string) => {
   };
 
   const handleDeleteGeneralEvent = (id: string) => {
-    if (confirm("Sei sicuro di voler eliminare questo evento social?")) {
-      setGeneralEvents((prev) => prev.filter((e) => e.id !== id));
-      setNotificationToast({ message: "Evento eliminato.", type: "error" });
+    if (!confirm("Sei sicuro di voler eliminare questo evento social?")) return;
+    setGeneralEvents((prev) => prev.filter((e) => e.id !== id));
+    setNotificationToast({ message: "Evento eliminato.", type: "error" });
+  };
+
+  const handleAddDayNote = async (date: string, text: string) => {
+    if (!currentUser) return;
+
+    const safeText = (text ?? "").trim();
+    if (!safeText) return;
+
+    const optimistic: DayNote = {
+      id: crypto.randomUUID(),
+      date,
+      userId: currentUser.id,
+      text: safeText,
+      createdAt: Date.now(),
+    };
+
+    setDayNotes((prev) => [...prev, optimistic]);
+
+    const payload = { date, user_id: currentUser.id, text: safeText };
+
+    const { data, error } = await supabase.from("day_notes").insert(payload).select("*").single();
+
+    if (error || !data) {
+      setDayNotes((prev) => prev.filter((n) => n.id !== optimistic.id));
+      setNotificationToast({ message: "Errore salvataggio nota", type: "error" });
+      return;
+    }
+
+    const saved: DayNote = {
+      id: data.id,
+      date: String(data.date).slice(0, 10),
+      userId: data.user_id,
+      text: data.text,
+      createdAt: new Date(data.created_at).getTime(),
+    };
+
+    setDayNotes((prev) => prev.map((n) => (n.id === optimistic.id ? saved : n)));
+  };
+
+  const handleDeleteDayNote = async (id: string) => {
+    const toDelete = dayNotes.find((n) => n.id === id);
+    if (!toDelete) return;
+
+    setDayNotes((prev) => prev.filter((n) => n.id !== id));
+
+    const { error } = await supabase.from("day_notes").delete().eq("id", id);
+
+    if (error) {
+      setDayNotes((prev) => [...prev, toDelete].sort((a, b) => a.createdAt - b.createdAt));
+      setNotificationToast({ message: "Errore eliminazione nota", type: "error" });
     }
   };
 
-  const handleEventResponse = (notification: UserNotification, isAccepted: boolean) => {
-    if (!notification.data?.eventId || !currentUser) return;
-
-    const newStatus = isAccepted ? ConfirmationStatus.CONFIRMED : ConfirmationStatus.REJECTED;
-
-    setGeneralEvents((prev) =>
-      prev.map((e) => {
-        if (e.id === notification.data?.eventId) {
-          const updatedResponses = e.responses.map((r) =>
-            r.userId === currentUser.id ? { ...r, status: newStatus } : r
-          );
-          return { ...e, responses: updatedResponses };
-        }
-        return e;
-      })
-    );
-
-    handleMarkNotificationRead(notification.id);
-    setNotificationToast({ message: isAccepted ? "Partecipazione confermata!" : "Invito declinato." });
-  };
-
- const handleAddDayNote = async (date: string, text: string) => {
+  const handleCreateGeneralEvent = async (
+  date: string,
+  activityId: string,
+  startTime?: string,
+  endTime?: string,
+  notes?: string
+) => {
   if (!currentUser) return;
 
-  const safeText = (text ?? "").trim();
-  if (!safeText) return;
+  const act = activitiesById.get(ev.activityId);
+  const safeDate = String(date).slice(0, 10);
 
-  const optimistic: DayNote = {
-    id: crypto.randomUUID(),
-    date,
-    userId: currentUser.id,
-    text: safeText,
-    createdAt: Date.now(),
-  };
-
-  setDayNotes((prev) => [...prev, optimistic]);
-
-  const payload = { date, user_id: currentUser.id, text: safeText };
-
-  const { data, error } = await supabase
-    .from("day_notes")
-    .insert(payload)
+  // 1️⃣ creo evento
+  const { data: createdEvent, error: evErr } = await supabase
+    .from("general_events")
+    .insert({
+      date: safeDate,
+      activity_id: activityId || null,
+      start_time: startTime || null,
+      end_time: endTime || null,
+      notes: notes || null,
+      created_by: currentUser.id,
+    })
     .select("*")
     .single();
 
-  console.log("[A9][INSERT day_notes]", payload, "error:", error);
+  console.log("[A8][INSERT general_events]", evErr);
 
-  if (error || !data) {
-    setDayNotes((prev) => prev.filter((n) => n.id !== optimistic.id));
-    setNotificationToast({ message: "Errore salvataggio nota", type: "error" });
+  if (evErr || !createdEvent) {
+    setNotificationToast({
+      message: "Errore creazione evento",
+      type: "error",
+    });
     return;
   }
 
-  const saved: DayNote = {
-    id: data.id,
-    date: String(data.date).slice(0, 10),
-    userId: data.user_id,
-    text: data.text,
-    createdAt: new Date(data.created_at).getTime(),
-  };
+  const eventId = createdEvent.id;
 
-  setDayNotes((prev) => prev.map((n) => (n.id === optimistic.id ? saved : n)));
+  // 2️⃣ creo responses per tutti gli utenti
+  const responsesPayload = users.map((u) => ({
+    event_id: eventId,
+    user_id: u.id,
+    status: ConfirmationStatus.PENDING,
+  }));
+
+  const { error: respErr } = await supabase
+    .from("general_event_responses")
+    .insert(responsesPayload);
+
+  console.log("[A8][INSERT responses]", respErr);
+
+  // 3️⃣ notifiche
+  const msg = `Invito: ${act?.name ?? "Evento"} il ${format(
+    parseDate(safeDate),
+    "dd/MM"
+  )}`;
+
+  const notifPayload = users.map((u) => ({
+    user_id: u.id,
+    type: NotificationType.EVENT_INVITE,
+    message: msg,
+    read: false,
+    data: { eventId },
+  }));
+
+  const { error: notifErr } = await supabase
+    .from("notifications")
+    .insert(notifPayload);
+
+  console.log("[A8][INSERT notifications]", notifErr);
+
+  setNotificationToast({
+    message: `Evento "${act?.name ?? "Evento"}" creato!`,
+    type: notifErr ? "error" : "success",
+  });
+
+  // reload dal DB (importantissimo per evitare ghost state)
+  await loadGeneralEventsFromDb();
+  await loadNotificationsFromDb();
+};
+
+
+const loadUsersFromDb = async () => {
+  const { data, error } = await supabase
+  .from("users")
+  .select("auth_id,email,name,role,is_admin,avatar_url,phone_number,birth_date,google_calendar_connected")
+  .order("email", { ascending: true });
+
+const mapped: User[] = (data ?? []).map((r: any) => ({
+  id: r.auth_id,
+  name: r.name ?? (r.email ? String(r.email).split("@")[0] : "utente"),
+  email: r.email ?? "",
+  role: (r.role ?? "HELPER") as Role,
+  isAdmin: !!r.is_admin,
+  avatar: r.avatar_url ?? `https://api.dicebear.com/7.x/avataaars/svg?seed=${r.email || r.auth_id}`,
+  mustChangePassword: false,
+  googleCalendarConnected: !!r.google_calendar_connected,
+  phoneNumber: r.phone_number ?? "",
+  birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : "",
+
+  username: r.email ? String(r.email).split("@")[0] : "utente",
+  password: "",
+})) as any;
+
+setUsers(mapped);
+
+  console.log("[LOAD users] rows:", mapped.length);
 };
 
 
 
+const loadGeneralEventsFromDb = async () => {
+  // 1) eventi
+  const { data: evRows, error: evErr } = await supabase
+    .from("general_events")
+    .select("id,date,activity_id,start_time,end_time,notes,created_by,created_at")
+    .order("date", { ascending: true });
 
-  const handleDeleteDayNote = async (id: string) => {
-  // 1) prendo la nota (per rollback se serve)
-  const toDelete = dayNotes.find((n) => n.id === id);
-  if (!toDelete) return;
+  if (evErr) {
+    console.error("[A8][LOAD general_events] error:", evErr);
+    return;
+  }
 
-  // 2) UI subito
-  setDayNotes((prev) => prev.filter((n) => n.id !== id));
+  // 2) risposte
+  const { data: respRows, error: respErr } = await supabase
+    .from("general_event_responses")
+    .select("event_id,user_id,status");
 
-  // 3) DB
-  const { error } = await supabase.from("day_notes").delete().eq("id", id);
+  if (respErr) {
+    console.error("[A8][LOAD general_event_responses] error:", respErr);
+    return;
+  }
 
-  console.log("[A9][DELETE day_notes]", id, "error:", error);
+  const byEventId = new Map<string, { userId: string; status: ConfirmationStatus }[]>();
+  (respRows ?? []).forEach((r: any) => {
+    const arr = byEventId.get(r.event_id) ?? [];
+    arr.push({ userId: r.user_id, status: r.status as ConfirmationStatus });
+    byEventId.set(r.event_id, arr);
+  });
+
+  const mapped: GeneralEvent[] = (evRows ?? []).map((e: any) => ({
+    id: e.id,
+    date: String(e.date).slice(0, 10),
+    activityId: e.activity_id ?? "",
+    startTime: e.start_time ?? undefined,
+    endTime: e.end_time ?? undefined,
+    notes: e.notes ?? undefined,
+    responses: byEventId.get(e.id) ?? [],
+  }));
+
+  setGeneralEvents(mapped);
+  console.log("[A8][LOAD general_events] rows:", mapped.length);
+};
+
+const loadNotificationsFromDb = async (userId?: string | null) => {
+  const uid = userId ?? currentUser?.id;
+  if (!uid) return;
+
+  const { data: rows, error } = await supabase
+    .from("notifications")
+    .select("id,user_id,type,message,read,data,created_at")
+    .eq("user_id", uid)
+    .order("created_at", { ascending: false });
 
   if (error) {
-    // rollback
-    setDayNotes((prev) => [...prev, toDelete].sort((a, b) => a.createdAt - b.createdAt));
-    setNotificationToast({ message: "Errore eliminazione nota", type: "error" });
+    console.error("[A8][LOAD notifications] error:", error);
+    return;
   }
+
+  const mapped: UserNotification[] = (rows ?? []).map((n: any) => ({
+    id: n.id,
+    userId: n.user_id,
+    type: n.type as NotificationType,
+    message: n.message,
+    read: !!n.read,
+    data: n.data ?? undefined,
+    createdAt: new Date(n.created_at).getTime(),
+  }));
+
+  setNotifications(mapped);
+  console.log("[A8][LOAD notifications] rows:", mapped.length);
 };
 
 
-  const handleMarkNotificationRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-  };
+useEffect(() => {
+  if (!isLoggedIn || !currentUser) return;
 
-  const handleUpdateProfile = async (field: keyof User, value: any) => {
+  const channel = supabase
+    .channel("notifications-live")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${currentUser.id}`,
+      },
+      () => {
+        loadNotificationsFromDb(currentUser.id);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [isLoggedIn, currentUser?.id]);
+
+useEffect(() => {
+  if (!DEV) return;
+  console.log("[A3][STATE calendarEvents] len:", calendarEvents.length);
+  if (calendarEvents[0]) console.log("[A3][STATE first]", calendarEvents[0]);
+}, [calendarEvents, DEV]);
+
+
+ const handleUpdateProfile = async (field: keyof User, value: any) => {
   if (!currentUser) return;
 
-  // 1) UI ottimistica: aggiorno subito users[]
-  setUsers((prev) =>
-    prev.map((u) => (u.id === currentUser.id ? { ...u, [field]: value } : u))
-  );
+  // UI subito
+  setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? { ...u, [field]: value } : u)));
 
-  // 2) mappa campi User -> colonne DB
+  // mappa campi UI -> colonne DB
   const fieldMap: Partial<Record<keyof User, string>> = {
     avatar: "avatar_url",
     phoneNumber: "phone_number",
     birthDate: "birth_date",
     googleCalendarConnected: "google_calendar_connected",
     isAdmin: "is_admin",
+    name: "name",
+    email: "email",
+    role: "role",
   };
 
   const dbColumn = fieldMap[field] ?? (field as string);
 
-  const { data, error } = await supabase
+  // normalizzazione valori
+  const patch: any = {};
+  patch[dbColumn] =
+    value === "" || value === undefined ? null : value;
+
+  console.log("[USERS][update] auth_id:", currentUser.id, "patch:", patch);
+
+  const { error } = await supabase
     .from("users")
-    .update({ [dbColumn]: value })
-    .eq("auth_id", currentUser.id)
-    .select("*")
-    .single();
+    .update(patch)
+    .eq("auth_id", currentUser.id);
 
   if (error) {
-    console.error("Update profile DB error:", error);
-
-    // opzionale: rollback (se vuoi essere pignolo)
-    // -> per farlo servirebbe salvare il valore precedente prima del setUsers
+    console.error("[USERS][update] DB error:", error);
+    setNotificationToast({ message: `Errore salvataggio profilo: ${error.message}`, type: "error" });
     return;
   }
 
-  // 3) riallineo dbUser con la riga appena aggiornata
-  setDbUser(data);
+  // ricarica dbUser + lista users per allineare
+  
+  const { data: refreshed } = await supabase
+    .from("users")
+    .select("*")
+    .eq("auth_id", currentUser.id)
+    .maybeSingle();
+  if (refreshed) setDbUser(refreshed);
+
+  setNotificationToast({ message: "Profilo aggiornato ✅", type: "success" });
+};
+
+  /* const handleAdminUpdateUser = (userId: string, updates: Partial<User>) => {
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updates } : u)));
+    setNotificationToast({ message: "Dati marinaio aggiornati con successo!" });
+  }; */
+
+  const handleAddUser = async (
+  name: string,
+  role: Role,
+  email: string,
+  isAdmin: boolean,
+  phoneNumber: string,
+  birthDate: string,
+  password: string
+) => {
+  try {
+    // 1) session token
+    const { data: sess, error: sessErr } = await supabase.auth.getSession();
+    if (sessErr) {
+      console.error("[ADD USER] getSession error:", sessErr);
+      setNotificationToast({ message: "Sessione non disponibile.", type: "error" });
+      return;
+    }
+
+    const token = sess.session?.access_token;
+    if (!token) {
+      console.error("[ADD USER] token mancante");
+      setNotificationToast({ message: "Non risulti loggato. Rifai login.", type: "error" });
+      return;
+    }
+
+    // 2) validazioni
+    const safeEmail = (email ?? "").trim().toLowerCase();
+    const safePwd = (password ?? "").trim();
+    if (!safeEmail || !safePwd) {
+      setNotificationToast({ message: "Email e Password sono obbligatorie.", type: "error" });
+      return;
+    }
+
+    // 3) payload
+    const payload = {
+      action: "create_user",
+      email: safeEmail,
+      password: safePwd,
+      name: (name ?? "").trim(),
+      role: String(role ?? Role.HELPER).toUpperCase(),
+      is_admin: !!isAdmin,
+      phone_number: phoneNumber?.trim() || null,
+      birth_date: birthDate?.trim() || null,
+    };
+
+    // 4) fetch DIRETTA con apikey + Authorization
+    const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`;
+
+    const res = await fetch(fnUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await res.text();
+    let json: any = null;
+    try {
+      json = JSON.parse(text);
+    } catch {}
+
+    if (!res.ok) {
+      console.error("[ADD USER] HTTP", res.status, text);
+      setNotificationToast({
+        message: json?.error ? `Errore: ${json.error}` : `Errore creazione utente (HTTP ${res.status})`,
+        type: "error",
+      });
+      return;
+    }
+
+    console.log("[ADD USER] ok:", json);
+
+    
+    setNotificationToast({ message: "Utente creato ✅", type: "success" });
+  } catch (e) {
+    console.error("[ADD USER] unexpected:", e);
+    setNotificationToast({ message: "Errore inatteso creazione utente.", type: "error" });
+  }
 };
 
 
-
-  const handleAdminUpdateUser = (userId: string, updates: Partial<User>) => {
-    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updates } : u)));
-    setNotificationToast({ message: "Dati marinaio aggiornati con successo!" });
-  };
-
-  const handleAddUser = (
-    name: string,
-    role: Role,
-    email: string,
-    isAdmin: boolean,
-    phoneNumber: string,
-    birthDate: string
-  ) => {
-    const newUser: User = {
-      id: crypto.randomUUID(),
-      name,
-      username: name.toLowerCase().replace(/\s/g, ""),
-      password: "1234",
-      isAdmin,
-      role,
-      email,
-      phoneNumber,
-      birthDate,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}&backgroundColor=b6e3f4`,
-      mustChangePassword: true,
-      googleCalendarConnected: false,
-    };
-    setUsers((prev) => [...prev, newUser]);
-  };
 
   const handleRemoveUser = (userId: string) => {
     if (userId === currentUserId) return;
@@ -1266,29 +1622,17 @@ const handleDeleteAssignment = async (id: string) => {
     );
   };
 
-  const getEffectiveAssignment = (dateStr: string, boatId: string) => {
-    const targetDate = parseDate(dateStr);
-    return assignments.find((a) => {
-      if (a.boatId !== boatId) return false;
-      const startDate = parseDate(a.date);
-      const diff = differenceInCalendarDays(targetDate, startDate);
-      return diff >= 0 && diff < a.durationDays;
-    });
-  };
 
-  const getHoverData = () => {
+const getHoverData = () => {
   if (!hoveredDate) return [];
 
-  // 1) eventi presi da calendar_events per quel giorno
-  const dayCalEvents = calendarEvents.filter(
-    (e) => e.startDate <= hoveredDate && e.endDate >= hoveredDate
-  );
+  // 1) calendar events già indicizzati per data
+  const dayCalEvents = calEventsByDate.get(hoveredDate) ?? [];
 
-  // 2) li trasformo nel “formato” che DayHoverModal già si aspetta
   const calAsHoverRows = dayCalEvents.map((e) => ({
     boat:
-      boats.find((b) => b.id === e.boatId) ??
-      ({ id: e.boatId, name: "Barca", type: BoatType.SAILING, image: "" } as any),
+      boatsById.get(e.boatId) ??
+      ({ id: e.boatId, name: "Barca", type: "VELA", image: "" } as any),
     assignment: {
       id: e.id,
       date: e.startDate,
@@ -1305,39 +1649,53 @@ const handleDeleteAssignment = async (id: string) => {
       name: e.title,
       allowedBoatTypes: [],
       defaultDurationDays: 1,
+      isGeneral: false,
     },
     instructor: null,
     helper: null,
   }));
 
-  // 3) QUI è il tuo “vecchio” hoverData (boats+assignments ecc.)
+  // 2) assignments: per quella data, per ogni barca
   const assignmentHoverRows = boats
     .map((boat) => {
       const assignment = getEffectiveAssignment(hoveredDate, boat.id);
       if (!assignment || !assignment.activityId) return null;
 
-      const activity = activities.find((a) => a.id === assignment.activityId);
+      const activity = activitiesById.get(assignment.activityId);
       if (!activity) return null;
 
       return {
         boat,
         assignment,
         activity,
-        instructor: users.find((u) => u.id === assignment.instructorId),
-        helper: users.find((u) => u.id === assignment.helperId),
+        instructor: assignment.instructorId ? usersById.get(assignment.instructorId) ?? null : null,
+        helper: assignment.helperId ? usersById.get(assignment.helperId) ?? null : null,
       };
     })
     .filter(Boolean);
 
-  // 4) QUESTO è “cambiare il return”: unisco i due array
-  return [...calAsHoverRows, ...assignmentHoverRows];
+  return [...calAsHoverRows, ...(assignmentHoverRows as any[])];
 };
 
 
-  const getDayNotesForHover = () => {
-    if (!hoveredDate) return [];
-    return dayNotes.filter((n) => n.date === hoveredDate);
+  const isCommanderConfirmed = (a: Assignment) => {
+    const s = String((a as any).instructorStatus ?? "").toUpperCase();
+    return s === "CONFIRMED";
   };
+
+  const getCommanderStatus = (a: Assignment) => {
+    const s = String((a as any).instructorStatus ?? "").toUpperCase();
+    if (s === "CONFIRMED") return "CONFIRMED";
+    if (s === "REJECTED") return "REJECTED";
+    return "PENDING";
+  };
+  
+
+ const getDayNotesForHover = () => {
+  if (!hoveredDate) return [];
+  return notesByDate.get(hoveredDate) ?? [];
+};
+
 
   const navigateCalendar = (direction: "prev" | "next") => {
     if (calendarView === "month") {
@@ -1347,109 +1705,317 @@ const handleDeleteAssignment = async (id: string) => {
     }
   };
 
-  // --- GUARD CLAUSES ---
-  if (!appReady) {
-  return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">Caricamento Ciurma...</div>;
- }
+   // =========================
+// INDICI / MAPPE (PERFORMANCE)
+// Metti TUTTO QUESTO BLOCCO PRIMA DEI "GUARDS" (prima degli if con return)
+// =========================
 
- if (loading) {
+// 1) Disponibilità per utente+data (utile se ti serve in giro)
+const availByUserDate = useMemo(() => {
+  const m = new Map<string, AvailabilityStatus>();
+  for (const a of availabilities) {
+    const d = (a.date ?? "").slice(0, 10);
+    if (!d) continue;
+    m.set(`${a.userId}|${d}`, a.status);
+  }
+  return m;
+}, [availabilities]);
+
+// 2) Le MIE disponibilità per data (per colorare il calendario)
+const myAvailabilityByDate = useMemo(() => {
+  const m = new Map<string, AvailabilityStatus>();
+  const myId = currentUser?.id;
+  if (!myId) return m;
+
+  for (const a of availabilities) {
+    if (a.userId !== myId) continue;
+    const d = (a.date ?? "").slice(0, 10);
+    if (!d) continue;
+    m.set(d, a.status);
+  }
+  return m;
+}, [availabilities, currentUser?.id]);
+
+// 3) Note per data
+const notesByDate = useMemo(() => {
+  const m = new Map<string, DayNote[]>();
+  for (const n of dayNotes) {
+    const d = (n.date ?? "").slice(0, 10);
+    if (!d) continue;
+    const arr = m.get(d) ?? [];
+    arr.push(n);
+    m.set(d, arr);
+  }
+  return m;
+}, [dayNotes]);
+
+// 4) Eventi generali per data
+const generalEventsByDate = useMemo(() => {
+  const m = new Map<string, GeneralEvent[]>();
+  for (const e of generalEvents) {
+    const d = (e.date ?? "").slice(0, 10);
+    if (!d) continue;
+    const arr = m.get(d) ?? [];
+    arr.push(e);
+    m.set(d, arr);
+  }
+  return m;
+}, [generalEvents]);
+
+// 5) Manutenzioni indicizzate (expiring + performed)
+const maintenanceByDate = useMemo(() => {
+  const expiring = new Map<string, MaintenanceRecord[]>();
+  const performed = new Map<string, MaintenanceRecord[]>();
+
+  for (const r of maintenanceRecords) {
+    const date = (r.date ?? "").slice(0, 10);
+    if (date) {
+      const arr = performed.get(date) ?? [];
+      arr.push(r);
+      performed.set(date, arr);
+    }
+
+    const exp = (r.expirationDate ?? "").slice(0, 10);
+    if (exp && r.status !== MaintenanceStatus.DONE) {
+      const arr = expiring.get(exp) ?? [];
+      arr.push(r);
+      expiring.set(exp, arr);
+    }
+  }
+
+  return { expiring, performed };
+}, [maintenanceRecords]);
+
+// 6) Calendar events: indicizza OGNI giorno del range
+const calEventsByDate = useMemo(() => {
+  const m = new Map<string, CalendarEvent[]>();
+
+  for (const e of calendarEvents) {
+    const start = (e.startDate ?? "").slice(0, 10);
+    const end = (e.endDate ?? e.startDate ?? "").slice(0, 10);
+    if (!start) continue;
+
+    const days = eachDayOfInterval({
+      start: parseDate(start),
+      end: parseDate(end),
+    });
+
+    for (const d of days) {
+      const ds = format(d, "yyyy-MM-dd");
+      const arr = m.get(ds) ?? [];
+      arr.push(e);
+      m.set(ds, arr);
+    }
+  }
+
+  return m;
+}, [calendarEvents]);
+
+
+
+// 7) Lookup mappe byId (per evitare .find)
+const boatsById = useMemo(() => new Map(boats.map((b) => [b.id, b])), [boats]);
+const activitiesById = useMemo(() => new Map(activities.map((a) => [a.id, a])), [activities]);
+const usersById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
+
+// 8) daysToRender memoizzato
+const daysToRender = useMemo(() => {
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+
+  if (calendarView === "month") {
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0);
+    return eachDayOfInterval({ start: monthStart, end: monthEnd });
+  }
+
+  const start = new Date(currentDate);
+  const day = start.getDay();
+  const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+  start.setDate(diff);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+
+  return eachDayOfInterval({ start, end });
+}, [currentDate, calendarView]);
+
+// 9) MouseMove throttling via requestAnimationFrame
+const rafRef = useRef<number | null>(null);
+const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+const handleMouseMove = React.useCallback((e: React.MouseEvent) => {
+  lastMouseRef.current = { x: e.clientX, y: e.clientY };
+
+  if (rafRef.current != null) return;
+
+  rafRef.current = requestAnimationFrame(() => {
+    rafRef.current = null;
+    setMousePos(lastMouseRef.current);
+  });
+}, []);
+
+  const handleDayClick = React.useCallback((dateStr: string) => {
+  setSelectedDate(dateStr);
+
+  const selected = (calEventsByDate?.get?.(dateStr) ?? []) as any[];
+  // Se tu usi un indice diverso, sostituisci la riga sopra con quello.
+  setSelectedCalendarEvents(selected);
+}, [calEventsByDate]);
+
+const handleDayEnter = React.useCallback((dateStr: string) => {
+  setHoveredDate(dateStr);
+}, []);
+
+const handleDayLeave = React.useCallback(() => {
+  setHoveredDate(null);
+}, []);
+
+useEffect(() => {
+  return () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+  };
+}, []);
+
+// 10) Assignments indicizzati per barca (performance + match più affidabile)
+const assignmentsByBoatId = useMemo(() => {
+  const m = new Map<string, Assignment[]>();
+
+  for (const a of assignments) {
+    const boatId = String(a.boatId ?? "").trim();
+    if (!boatId) continue;
+
+    const normalized: Assignment = {
+      ...a,
+      boatId,
+      date: String(a.date ?? "").slice(0, 10),
+      durationDays: Number(a.durationDays ?? 1) || 1,
+    };
+
+    const arr = m.get(boatId) ?? [];
+    arr.push(normalized);
+    m.set(boatId, arr);
+  }
+
+  // facoltativo: ordina per data per scorrere più “pulito”
+  for (const [k, arr] of m.entries()) {
+    arr.sort((x, y) => String(x.date).localeCompare(String(y.date)));
+    m.set(k, arr);
+  }
+
+  return m;
+}, [assignments]);
+
+const getEffectiveAssignment = React.useCallback(
+  (dateStr: string, boatId: string) => {
+    const list = assignmentsByBoatId.get(String(boatId).trim()) ?? [];
+    if (!list.length) return undefined;
+
+    const target = parseDate(String(dateStr).slice(0, 10));
+
+    for (const a of list) {
+      const start = parseDate(String(a.date).slice(0, 10));
+      const diff = differenceInCalendarDays(target, start);
+      const dur = Number(a.durationDays ?? 1) || 1;
+
+      if (diff >= 0 && diff < dur) return a;
+    }
+    return undefined;
+  },
+  [assignmentsByBoatId]
+);
+
+useEffect(() => {
+  console.log("[DBG] assignments:", assignments.length);
+  console.log("[DBG] assignmentsByBoatId keys:", Array.from(assignmentsByBoatId.keys()).length);
+}, [assignments.length, assignmentsByBoatId]);
+
+
+// =========================
+// --- GUARDS ---
+// (Devono stare DOPO TUTTI GLI HOOK sopra)
+// =========================
+if (!appReady) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">
+      Caricamento Ciurma...
+    </div>
+  );
+}
+
+if (loading) {
   return <div className="min-h-screen flex items-center justify-center">Caricamento...</div>;
- }
+}
 
-    if (isLoggedIn && !sessionUser) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        Sto preparando il profilo…
-      </div>
-    );
-  }
+if (isLoggedIn && !sessionUser) {
+  return <div className="min-h-screen flex items-center justify-center">Sto preparando il profilo…</div>;
+}
 
-  // ✅ Se NON sei loggato, mostra la schermata login
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-        <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm">
-          <div className="flex justify-center mb-6 text-blue-600">
-            <Ship size={48} />
-          </div>
-          <h1 className="text-2xl font-bold mb-6 text-center text-slate-800">
-            Benvenuto a Bordo
-          </h1>
-
-          {loginError && (
-            <div className="bg-rose-100 text-rose-700 p-3 rounded-lg mb-4 text-sm font-medium flex items-center gap-2">
-              <AlertTriangle size={16} /> {loginError}
-            </div>
-          )}
-
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setLoginError(null);
-
-              const { error } = await supabase.auth.signInWithPassword({ email, password });
-              if (error) setLoginError(error.message);
-            }}
-            className="space-y-4"
-          >
-            <input
-              type="email"
-              required
-              className="w-full border p-2 rounded"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-
-            <input
-              type="password"
-              required
-              className="w-full border p-2 rounded"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-
-            <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded">
-              Accedi
-            </button>
-          </form>
+if (!isLoggedIn) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm">
+        <div className="flex justify-center mb-6 text-blue-600">
+          <Ship size={48} />
         </div>
+        <h1 className="text-2xl font-bold mb-6 text-center text-slate-800">Benvenuto a Bordo</h1>
+
+        {loginError && (
+          <div className="bg-rose-100 text-rose-700 p-3 rounded-lg mb-4 text-sm font-medium flex items-center gap-2">
+            <AlertTriangle size={16} /> {loginError}
+          </div>
+        )}
+
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setLoginError(null);
+
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) setLoginError(error.message);
+          }}
+          className="space-y-4"
+        >
+          <input
+            type="email"
+            required
+            className="w-full border p-2 rounded"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+
+          <input
+            type="password"
+            required
+            className="w-full border p-2 rounded"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+
+          <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded">
+            Accedi
+          </button>
+        </form>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+
 
 
   // --- RENDER PRINCIPALE ---
-  const daysToRender = (() => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    if (calendarView === "month") {
-      const monthStart = new Date(year, month, 1);
-      const monthEnd = new Date(year, month + 1, 0);
-      return eachDayOfInterval({ start: monthStart, end: monthEnd });
-    } else {
-      const start = new Date(currentDate);
-      const day = start.getDay();
-      const diff = start.getDate() - day + (day === 0 ? -6 : 1);
-      start.setDate(diff);
-      start.setHours(0, 0, 0, 0);
 
-      const end = new Date(start);
-      end.setDate(start.getDate() + 6);
-      end.setHours(23, 59, 59, 999);
 
-      return eachDayOfInterval({ start, end });
-    }
-  })();
 
-  const startDayPadding =
-    calendarView === "month"
-      ? (new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay() + 6) % 7
-      : 0;
+  const startDayPadding = calendarView === "month" ? (new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay() + 6) % 7 : 0;
 
-  const myNotifications = notifications.filter((n) => n.userId === currentUserId);
-  const unreadCount = myNotifications.filter((n) => !n.read).length;
+const myNotifications = notifications; // già filtrate dal DB per user_id
+const unreadCount = myNotifications.reduce((acc, n) => acc + (n.read ? 0 : 1), 0);
+
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 relative">
@@ -1474,398 +2040,293 @@ const handleDeleteAssignment = async (id: string) => {
         !isUserManagementOpen &&
         !isFleetManagementOpen &&
         !isNotificationOpen && (
-          <DayHoverModal
-            date={hoveredDate}
-            position={mousePos}
-            data={getHoverData() as any}
-            notes={getDayNotesForHover()}
-          />
+          <DayHoverModal date={hoveredDate} position={mousePos} data={getHoverData() as any} notes={getDayNotesForHover()} />
         )}
 
       {/* Navbar */}
-      <nav className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-lg text-white">
-            <Ship size={20} />
-          </div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-800 hidden sm:block">
-            Calendario Avui
-          </h1>
-        </div>
+      <AppNavbar
+  currentUser={currentUser}
+  currentUserId={currentUserId}
+  isNotificationOpen={isNotificationOpen}
+  setIsNotificationOpen={setIsNotificationOpen}
+  isProfileOpen={isProfileOpen}
+  setIsProfileOpen={setIsProfileOpen}
+  isUserManagementOpen={isUserManagementOpen}
+  setIsUserManagementOpen={setIsUserManagementOpen}
+  isFleetManagementOpen={isFleetManagementOpen}
+  setIsFleetManagementOpen={setIsFleetManagementOpen}
+  notificationPanelRef={notificationPanelRef}
+  notifications={notifications}
+  handleLogout={handleLogout}
+  handleEventResponse={handleEventResponse}
+  handleAssignmentResponse={handleAssignmentResponse}
+  handleMarkNotificationRead={handleMarkNotificationRead}
+/>
 
-        <div className="flex items-center gap-4">
-          {/* Notification Bell */}
-          <div className="relative">
-            <button
-              onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-              className="p-2 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-full transition-colors relative"
-            >
-              <Bell size={22} />
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 rounded-full border border-white flex items-center justify-center text-[8px] font-bold text-white">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-          </div>
 
-          <div className="flex items-center gap-2">
-            {currentUser?.isAdmin && (
-              <>
-                <button
-                  onClick={() => setIsUserManagementOpen(true)}
-                  className="p-2 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-full transition-colors"
-                >
-                  <UsersIcon size={22} />
-                </button>
-                <button
-                  onClick={() => setIsFleetManagementOpen(true)}
-                  className="p-2 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-full transition-colors mr-2"
-                >
-                  <Anchor size={22} />
-                </button>
-              </>
-            )}
-            <span className="hidden md:inline text-sm font-medium text-slate-600 text-right">
-              <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">
-                {currentUser?.name}
-              </div>
-              {currentUser?.role}
-            </span>
-          </div>
-
-          <div className="relative group cursor-pointer" onClick={() => setIsProfileOpen(true)}>
-            <img
-              src={currentUser?.avatar}
-              className="w-9 h-9 rounded-full border border-slate-200 bg-slate-100"
-              alt="Avatar"
-            />
-          </div>
-
-          <button
-            onClick={handleLogout}
-            className="ml-2 p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors"
-          >
-            <LogOut size={20} />
-          </button>
-        </div>
-      </nav>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-6">
-        <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
-          <div className="flex items-center gap-4">
-            <h2 className="text-3xl font-bold text-slate-800 capitalize min-w-[200px]">
-              {calendarView === "month"
-                ? format(currentDate, "MMMM yyyy", { locale: it })
-                : `Settimana ${format(currentDate, "w", { locale: it })}`}
-            </h2>
-            <div className="flex gap-2">
-              <button
-                onClick={() => navigateCalendar("prev")}
-                className="p-2 hover:bg-white hover:shadow rounded-lg transition-all border border-transparent hover:border-slate-200"
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <button
-                onClick={() => setCurrentDate(new Date())}
-                className="px-4 py-2 text-sm font-medium hover:bg-white hover:shadow rounded-lg transition-all border border-transparent hover:border-slate-200 text-slate-600"
-              >
-                Oggi
-              </button>
-              <button
-                onClick={() => navigateCalendar("next")}
-                className="p-2 hover:bg-white hover:shadow rounded-lg transition-all border border-transparent hover:border-slate-200"
-              >
-                <ChevronRight size={20} />
-              </button>
-            </div>
-          </div>
+        <CalendarHeader
+          currentDate={currentDate}
+          calendarView={calendarView}
+          onPrev={() => navigateCalendar("prev")}
+          onToday={() => setCurrentDate(new Date())}
+          onNext={() => navigateCalendar("next")}
+          onSetView={(v) => setCalendarView(v)}
+        />
 
-          <div className="flex bg-slate-200 p-1 rounded-lg">
-            <button
-              onClick={() => setCalendarView("month")}
-              className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${
-                calendarView === "month" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              <CalendarDays size={16} /> Mese
-            </button>
-            <button
-              onClick={() => setCalendarView("week")}
-              className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${
-                calendarView === "week" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              <CalendarRange size={16} /> Settimana
-            </button>
-          </div>
-        </div>
+<CalendarGrid
+  daysToRender={daysToRender}
+  calendarView={calendarView}
+  startDayPadding={startDayPadding}
+  currentUser={currentUser}
+  boats={boats}
+  activitiesById={activitiesById}
+  boatsById={boatsById}
+  usersById={usersById}
+  calEventsByDate={calEventsByDate}
+  generalEventsByDate={generalEventsByDate}
+  maintenanceByDate={maintenanceByDate}
+  myAvailabilityByDate={myAvailabilityByDate}
+  notesByDate={notesByDate}
+  getEffectiveAssignment={getEffectiveAssignment}
+  isCommanderConfirmed={isCommanderConfirmed}
+  onDayClick={(dateStr) => {
+    setSelectedDate(dateStr);
+    setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
+  }}
+  onDayEnter={(dateStr) => setHoveredDate(dateStr)}
+  onDayLeave={() => setHoveredDate(null)}
+  onMouseMove={handleMouseMove}
+  DayCell={DayCell}
+/>
 
-        <div className="grid grid-cols-7 gap-px bg-slate-200 rounded-2xl overflow-hidden shadow-sm border border-slate-200">
-  {["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"].map((day) => (
-    <div
-      key={day}
-      className="bg-slate-50 p-4 text-center font-semibold text-sm text-slate-400 uppercase tracking-wider"
-    >
-      {day}
-    </div>
-  ))}
 
-  {calendarView === "month" &&
-    Array.from({ length: startDayPadding }).map((_, i) => (
-      <div key={`empty-${i}`} className="bg-white min-h-[160px]" />
-    ))}
-
-  {daysToRender.map((day) => {
-    const dateStr = format(day, "yyyy-MM-dd");
-
-    // ✅ eventi che coprono quel giorno (start/end inclusi)
-    const dayCalendarEvents = calendarEvents.filter((e) => {
-      const start = (e.startDate ?? "").slice(0, 10);
-      const end = (e.endDate ?? e.startDate ?? "").slice(0, 10);
-      return dateStr >= start && dateStr <= end;
-    });
-
-    const isDayWeekend = isWeekend(day);
-
-    const myStatus = availabilities.find(
-      (a) => a.userId === currentUser!.id && a.date === dateStr
-    )?.status;
-
-    const daysGeneralEvents = generalEvents.filter((e) => e.date === dateStr);
-    const expiringMaintenance = maintenanceRecords.filter(
-      (r) => r.expirationDate === dateStr && r.status !== MaintenanceStatus.DONE
-    );
-    const performedMaintenance = maintenanceRecords.filter((r) => r.date === dateStr);
-    const notes = dayNotes.filter((n) => n.date === dateStr);
-
-    let bgClass = "bg-white";
-    if (myStatus === AvailabilityStatus.AVAILABLE)
-      bgClass = "bg-emerald-50/70 hover:bg-emerald-100/50";
-    if (myStatus === AvailabilityStatus.UNAVAILABLE)
-      bgClass = "bg-rose-50/70 hover:bg-rose-100/50";
-    if (isSameDay(day, new Date())) bgClass = "bg-blue-50/50";
-
-    return (
-      <div
-        key={dateStr}
-        onClick={() => {
-          setSelectedDate(dateStr);
-
-          const selected = calendarEvents.filter((e) => {
-            const start = (e.startDate ?? "").slice(0, 10);
-            const end = (e.endDate ?? e.startDate ?? "").slice(0, 10);
-            return dateStr >= start && dateStr <= end;
-          });
-
-          setSelectedCalendarEvents(selected);
-
-          // ✅ log solo al click
-          console.log(
-            "[A3][CLICK MATCH]",
-            dateStr,
-            "events:",
-            selected.length,
-            selected.map((e) => e.title)
-          );
-        }}
-        onMouseEnter={() => setHoveredDate(dateStr)}
-        onMouseLeave={() => setHoveredDate(null)}
-        onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
-        className={`${bgClass} min-h-[160px] p-2 transition-all cursor-pointer group flex flex-col relative`}
-      >
-        <div className="flex justify-between items-start mb-2">
-          <span
-            className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full transition-colors ${
-              isSameDay(day, new Date())
-                ? "bg-blue-600 text-white shadow-md"
-                : isDayWeekend
-                ? "text-slate-800"
-                : "text-slate-400"
-            }`}
-          >
-            {format(day, "d")}
-          </span>
-        </div>
-
-        <div className="flex flex-col gap-1 flex-1">
-          {/* ✅ NOTE */}
-          {notes.length > 0 && (
-            <div className="h-4 bg-amber-100 border border-amber-200 text-amber-600 rounded px-2 text-[9px] font-bold flex items-center gap-1 mb-1 shadow-sm">
-              <MessageCircle size={8} />
-              <span className="truncate">{notes.length} Note</span>
-            </div>
-          )}
-
-          {/* ✅ EVENTI calendar_events (UNA SOLA RIGA “pin”) */}
-          {dayCalendarEvents.length > 0 && (
-            <div
-              className="h-5 text-[10px] px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 bg-indigo-600 text-white font-bold"
-              title={dayCalendarEvents
-                .map((ev) => {
-                  const boatName = boats.find((b) => b.id === ev.boatId)?.name ?? "Barca";
-                  return `${boatName}: ${ev.title}`;
-                })
-                .join(" • ")}
-            >
-              <span className="truncate">
-                📌{" "}
-                {(() => {
-                  const ev = dayCalendarEvents[0];
-                  const boatName = boats.find((b) => b.id === ev.boatId)?.name ?? "Barca";
-                  const extra = dayCalendarEvents.length > 1 ? ` (+${dayCalendarEvents.length - 1})` : "";
-                  return `${boatName}: ${ev.title}${extra}`;
-                })()}
-              </span>
-            </div>
-          )}
-
-          {/* ✅ GENERAL EVENTS (viola) */}
-          {daysGeneralEvents.map((event) => {
-            const act = activities.find((a) => a.id === event.activityId);
-            return (
-              <div
-                key={event.id}
-                className="h-5 text-[10px] px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 bg-purple-500 text-white font-bold"
-              >
-                <PartyPopper size={10} className="mr-1" />
-                <span className="truncate">{act?.name}</span>
-              </div>
-            );
-          })}
-
-          {/* ✅ MAINTENANCE */}
-          {currentUser?.isAdmin &&
-            expiringMaintenance.map((record) => {
-              const boat = boats.find((b) => b.id === record.boatId);
-              const expDate = parseDate(record.expirationDate!);
-              const isExpired = isBefore(expDate, new Date()) && !isSameDay(expDate, new Date());
-
-              return (
-                <div
-                  key={record.id}
-                  className={`h-5 text-[10px] px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 border ${
-                    isExpired
-                      ? "bg-red-100 text-red-700 border-red-200"
-                      : "bg-amber-100 text-amber-700 border-amber-200"
-                  }`}
-                >
-                  <Wrench size={10} className="mr-1 shrink-0" />
-                  <span className="font-bold truncate">SCADE: {boat?.name}</span>
-                </div>
-              );
-            })}
-
-          {currentUser?.isAdmin &&
-            performedMaintenance.map((record) => {
-              const boat = boats.find((b) => b.id === record.boatId);
-              return (
-                <div
-                  key={record.id}
-                  className="h-5 text-[10px] px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 border bg-blue-100 text-blue-700 border-blue-200"
-                >
-                  <CheckCircle size={10} className="mr-1 shrink-0" />
-                  <span className="truncate">
-                    {boat?.name}: {record.description}
-                  </span>
-                </div>
-              );
-            })}
-
-          {/* ✅ ASSIGNMENTS */}
-          {boats.map((boat) => {
-            const assignment = getEffectiveAssignment(dateStr, boat.id);
-            if (!assignment) return null;
-
-            const activity = activities.find((a) => a.id === assignment.activityId);
-            const isCancelled = assignment.status === AssignmentStatus.CANCELLED;
-            const isStart = isSameDay(day, parseDate(assignment.date));
-
-            let barColor = "bg-teal-600 text-white shadow-sm border border-teal-700/10";
-            if (isCancelled)
-              barColor =
-                "bg-red-100 text-red-600 border border-red-200 decoration-line-through opacity-80";
-
-            return (
-              <div
-                key={`${boat.id}-${assignment.id}`}
-                className={`h-6 text-[10px] px-2 flex items-center overflow-hidden whitespace-nowrap ${barColor} rounded-md mx-1`}
-              >
-                {isStart && <span className="font-bold mr-1">{boat.name}</span>}
-                {isStart && activity && <span className="opacity-90 truncate">{activity.name}</span>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  })}
-
-        </div>
       </main>
 
-      {selectedDate && currentUser && (
-        <DayModal
-          date={selectedDate}
-          isOpen={!!selectedDate}
-          onClose={() => setSelectedDate(null)}
-          currentUser={currentUser}
-          users={users}
-          boats={boats}
-          activities={activities}
-          availabilities={availabilities}
-          assignments={assignments}
-          generalEvents={generalEvents}
-          dayNotes={dayNotes}
-          onUpdateAvailability={handleUpdateAvailability}
-          onUpdateAssignment={handleUpdateAssignment}
-          onDeleteAssignment={handleDeleteAssignment}
-          onCreateGeneralEvent={handleCreateGeneralEvent}
-          onUpdateGeneralEvent={handleUpdateGeneralEvent}
-          onDeleteGeneralEvent={handleDeleteGeneralEvent}
-          onAddDayNote={handleAddDayNote}
-          onDeleteDayNote={handleDeleteDayNote}
-          calendarEvents={selectedCalendarEvents}
-        />
-      )}
+      <ModalsLayer
+  selectedDate={selectedDate}
+  setSelectedDate={setSelectedDate}
+  currentUser={currentUser}
+  users={users}
+  boats={boats}
+  activities={activities}
+  availabilities={availabilities}
+  assignments={assignments}
+  generalEvents={generalEvents}
+  dayNotes={dayNotes}
+  selectedCalendarEvents={selectedCalendarEvents}
+  onUpdateAvailability={handleUpdateAvailability}
+  onUpdateAssignment={handleUpdateAssignment}
+  onDeleteAssignment={handleDeleteAssignment}
+  onCreateGeneralEvent={handleCreateGeneralEvent}
+  onUpdateGeneralEvent={handleUpdateGeneralEvent}
+  onDeleteGeneralEvent={handleDeleteGeneralEvent}
+  onAddDayNote={handleAddDayNote}
+  onDeleteDayNote={handleDeleteDayNote}
+  isUserManagementOpen={isUserManagementOpen}
+  setIsUserManagementOpen={setIsUserManagementOpen}
+  currentUserId={currentUserId}
+  onAddUser={handleAddUser}
+  onRemoveUser={handleRemoveUser}
+  onToggleRole={handleToggleRole}
+  onUpdateUser={handleUpdateUser}
+  isFleetManagementOpen={isFleetManagementOpen}
+  setIsFleetManagementOpen={setIsFleetManagementOpen}
+  maintenanceRecords={maintenanceRecords}
+  onUpdateBoats={setBoats}
+  onUpdateActivities={setActivities}
+  onUpdateMaintenance={setMaintenanceRecords}
+  isProfileOpen={isProfileOpen}
+  setIsProfileOpen={setIsProfileOpen}
+  onUpdateProfile={handleUpdateProfile}
+/>
 
-      <UserManagementModal
-        isOpen={isUserManagementOpen}
-        onClose={() => setIsUserManagementOpen(false)}
-        users={users}
-        currentUserId={currentUserId}
-        onAddUser={handleAddUser}
-        onRemoveUser={handleRemoveUser}
-        onToggleRole={handleToggleRole}
-        onUpdateUser={handleAdminUpdateUser}
-      />
 
-      <FleetManagementPage
-        isOpen={isFleetManagementOpen}
-        onClose={() => setIsFleetManagementOpen(false)}
-        boats={boats}
-        activities={activities}
-        maintenanceRecords={maintenanceRecords}
-        onUpdateBoats={setBoats}
-        onUpdateActivities={setActivities}
-        onUpdateMaintenance={setMaintenanceRecords}
-      />
-
-      {isProfileOpen && currentUser && (
-        <ProfilePage
-          user={currentUser}
-          users={users}
-          assignments={assignments}
-          boats={boats}
-          activities={activities}
-          onClose={() => setIsProfileOpen(false)}
-          onUpdateUser={handleUpdateProfile}
-        />
-      )}
     </div>
-  
+  );
+};
 
+type DayCellProps = {
+  dateStr: string;
+  day: Date;
+  isToday: boolean;
+  isWeekendDay: boolean;
+  bgClass: string;
+
+  notesCount: number;
+
+  dayCalendarEvents: CalendarEvent[];
+  daysGeneralEvents: GeneralEvent[];
+  expiringMaintenance: MaintenanceRecord[];
+  performedMaintenance: MaintenanceRecord[];
+
+  boats: Boat[];
+  activitiesById: Map<string, Activity>;
+  boatsById: Map<string, Boat>;
+  usersById: Map<string, User>;
+
+  getEffectiveAssignment: (dateStr: string, boatId: string) => Assignment | undefined;
+  isCommanderConfirmed: (a: Assignment) => boolean;
+
+  onClick: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onMouseMove: (e: React.MouseEvent) => void;
+};
+
+const DayCell = React.memo(function DayCell(props: DayCellProps) {
+  const {
+    dateStr,
+    day,
+    isToday,
+    isWeekendDay,
+    bgClass,
+    notesCount,
+    dayCalendarEvents,
+    daysGeneralEvents,
+    expiringMaintenance,
+    performedMaintenance,
+    boats,
+    activitiesById,
+    boatsById,
+    getEffectiveAssignment,
+    isCommanderConfirmed,
+    onClick,
+    onMouseEnter,
+    onMouseLeave,
+    onMouseMove,
+  } = props;
+
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onMouseMove={onMouseMove}
+      className={`${bgClass} min-h-[160px] p-2 transition-all cursor-pointer group flex flex-col relative`}
+    >
+      <div className="flex justify-between items-start mb-2">
+        <span
+          className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full transition-colors ${
+            isToday
+              ? "bg-blue-600 text-white shadow-md"
+              : isWeekendDay
+              ? "text-slate-800"
+              : "text-slate-400"
+          }`}
+        >
+          {format(day, "d")}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-1 flex-1">
+        {notesCount > 0 && (
+          <div className="h-4 bg-amber-100 border border-amber-200 text-amber-600 rounded px-2 text-[9px] font-bold flex items-center gap-1 mb-1 shadow-sm">
+            <MessageCircle size={8} />
+            <span className="truncate">{notesCount} Note</span>
+          </div>
+        )}
+
+        {dayCalendarEvents.length > 0 && (
+          <div
+            className="h-5 text-[10px] px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 bg-indigo-600 text-white font-bold"
+            title={dayCalendarEvents
+              .map((ev) => {
+                const boatName = boatsById.get(ev.boatId)?.name ?? "Barca";
+                return `${boatName}: ${ev.title}`;
+              })
+              .join(" • ")}
+          >
+            <span className="truncate">
+              📌{" "}
+              {(() => {
+                const ev = dayCalendarEvents[0];
+                const boatName = boatsById.get(ev.boatId)?.name ?? "Barca";
+                const extra = dayCalendarEvents.length > 1 ? ` (+${dayCalendarEvents.length - 1})` : "";
+                return `${boatName}: ${ev.title}${extra}`;
+              })()}
+            </span>
+          </div>
+        )}
+
+        {daysGeneralEvents.map((event) => {
+          const act = activitiesById.get(event.activityId);
+          return (
+            <div
+              key={event.id}
+              className="h-5 text-[10px] px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 bg-purple-500 text-white font-bold"
+            >
+              <PartyPopper size={10} className="mr-1" />
+              <span className="truncate">{act?.name}</span>
+            </div>
+          );
+        })}
+
+        {expiringMaintenance.map((record) => {
+          const boat = boatsById.get(record.boatId);
+          const expDate = parseDate(record.expirationDate!);
+          const isExpired = isBefore(expDate, new Date()) && !isSameDay(expDate, new Date());
+
+          return (
+            <div
+              key={record.id}
+              className={`h-5 text-[10px] px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 border ${
+                isExpired
+                  ? "bg-red-100 text-red-700 border-red-200"
+                  : "bg-amber-100 text-amber-700 border-amber-200"
+              }`}
+            >
+              <Wrench size={10} className="mr-1 shrink-0" />
+              <span className="font-bold truncate">SCADE: {boat?.name}</span>
+            </div>
+          );
+        })}
+
+        {performedMaintenance.map((record) => {
+          const boat = boatsById.get(record.boatId);
+          return (
+            <div
+              key={record.id}
+              className="h-5 text-[10px] px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 border bg-blue-100 text-blue-700 border-blue-200"
+            >
+              <CheckCircle size={10} className="mr-1 shrink-0" />
+              <span className="truncate">
+                {boat?.name}: {record.description}
+              </span>
+            </div>
+          );
+        })}
+
+        {boats.map((boat) => {
+          const assignment = getEffectiveAssignment(dateStr, boat.id);
+          if (!assignment) return null;
+
+          const activity = assignment.activityId ? activitiesById.get(assignment.activityId) : undefined;
+          const isCancelled = assignment.status === AssignmentStatus.CANCELLED;
+          const commanderConfirmed = isCommanderConfirmed(assignment);
+
+          let barColor = "bg-slate-500 text-white";
+          if (commanderConfirmed) barColor = "bg-emerald-600 text-white";
+          if (isCancelled) barColor = "bg-red-100 text-red-600 border border-red-200 line-through opacity-80";
+
+          const label = `${boat.name}: ${activity?.name ?? "Missione"}`;
+
+          return (
+            <div
+              key={`${boat.id}-${assignment.id}`}
+              className={`h-6 text-[10px] px-2 flex items-center overflow-hidden whitespace-nowrap ${barColor} rounded-md mx-1`}
+              title={label}
+            >
+              <span className="truncate">{label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
 
 
 export default App;
