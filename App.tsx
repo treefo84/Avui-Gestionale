@@ -838,6 +838,21 @@ useEffect(() => {
     }
   };
 
+  const handleToggleRole = async (userId: string) => {
+  if (userId === currentUserId) return;
+
+  const u = users.find((x) => x.id === userId);
+  if (!u) return;
+
+  let newRole: Role = Role.HELPER;
+  if (u.role === Role.HELPER) newRole = Role.INSTRUCTOR;
+  else if (u.role === Role.INSTRUCTOR) newRole = Role.MANAGER;
+  else if (u.role === Role.MANAGER) newRole = Role.HELPER;
+
+  // usa il tuo handleUpdateUser "vero" (quello che scrive su DB / edge function)
+  await handleUpdateUser(userId, { role: newRole });
+};
+
   // App.tsx
 
 const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
@@ -1447,7 +1462,7 @@ const saveMaintenanceRecord = async (rec: MaintenanceRecord) => {
 const deleteMaintenanceRecord = async (id: string) => {
   if (!confirm("Eliminare questa voce di manutenzione?")) return;
 
-  const { error } = await supabase.from("maintenance_records").delete().eq("id", id);
+  const { error } = await supabase.from("maintenance_logs").delete().eq("id", id);
   if (error) {
     console.error("[DELETE maintenance_records] error:", error);
     setNotificationToast({ message: "Errore eliminazione manutenzione.", type: "error" });
