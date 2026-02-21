@@ -4,7 +4,7 @@ const VERSION = "vJWT-2026-02-09-01";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-type Action = "create_user" | "set_role" | "set_admin";
+type Action = "create_user" | "set_role" | "set_admin" | "set_password" | "update_user" | "delete_user";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -167,8 +167,77 @@ if (action === "create_user") {
       return json(200, { ok: true });
     }
 
+
+    
+// SET PASSWORD - DELETE USER
+
+if (action === "set_password") {
+  const authId = String(body.auth_id ?? "").trim();
+  const password = String(body.password ?? "").trim();
+  const mustChange = !!body.must_change_password;
+
+  if (!authId || !password) return json(400, { error: "auth_id/password required" });
+
+  const { error: pwdErr } = await admin.auth.admin.updateUserById(authId, { password });
+  if (pwdErr) return json(400, { error: pwdErr.message });
+
+  // opzionale: se hai una colonna nel DB per forzare cambio password al primo login, aggiorna qui
+  // await admin.from("users").update({ must_change_password: mustChange }).eq("auth_id", authId);
+
+  return json(200, { ok: true, must_change_password: mustChange });
+}
+
+if (action === "delete_user") {
+  const authId = String(body.auth_id ?? "").trim();
+  if (!authId) return json(400, { error: "auth_id required" });
+
+  // ⚠️ Se hai FK che impediscono delete, questa parte può fallire.
+  // In tal caso ti faccio soft-delete, che è indistruttibile.
+  const { error: dbErr } = await admin.from("users").delete().eq("auth_id", authId);
+  if (dbErr) return json(400, { error: dbErr.message });
+
+  const { error: authErr } = await admin.auth.admin.deleteUser(authId);
+  if (authErr) return json(400, { error: authErr.message });
+
+  return json(200, { ok: true });
+}
+
+if (action === "update_user") {
+  const authId = String(body.auth_id ?? "").trim();
+  if (!authId) return json(400, { error: "auth_id required" });
+
+  const patch: any = {};
+
+  if (typeof body.name === "string") patch.name = body.name.trim();
+  if (typeof body.email === "string") patch.email = body.email.trim().toLowerCase() || null;
+  if (typeof body.role !== "undefined") patch.role = normRole(body.role);
+  if (typeof body.is_admin === "boolean") patch.is_admin = !!body.is_admin;
+
+  if (typeof body.phone_number === "string") patch.phone_number = body.phone_number.trim() || null;
+  if (typeof body.birth_date === "string") patch.birth_date = body.birth_date.trim() || null;
+  if (typeof body.avatar_url === "string") patch.avatar_url = body.avatar_url.trim() || null;
+
+  // 1) aggiorna public.users
+  if (Object.keys(patch).length) {
+    const { error: dbErr } = await admin.from("users").update(patch).eq("auth_id", authId);
+    if (dbErr) return json(400, { error: dbErr.message });
+  }
+
+  // 2) se cambia email, aggiorna anche auth
+  if (typeof body.email === "string") {
+    const email = body.email.trim().toLowerCase();
+    if (email) {
+      const { error: authErr } = await admin.auth.admin.updateUserById(authId, { email });
+      if (authErr) return json(400, { error: authErr.message });
+    }
+  }
+
+  return json(200, { ok: true });
+}
+
     return json(400, { error: "unknown action" });
   } catch (e: any) {
     return json(500, { error: e?.message ?? String(e) });
   }
 });
+

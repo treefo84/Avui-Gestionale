@@ -16,6 +16,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { MaintenanceModal } from "./MaintenanceModal";
+import { promises } from "dns";
 
 interface FleetManagementPageProps {
   isOpen: boolean;
@@ -27,7 +28,8 @@ interface FleetManagementPageProps {
 
   onUpdateBoats: (boats: Boat[]) => void;
   onUpdateActivities: (activities: Activity[]) => void;
-  onUpdateMaintenance: (records: MaintenanceRecord[]) => void;
+  onSaveMaintenance: (records: MaintenanceRecord[]) => promise<void>;
+    onDeleteMaintenance: (id: string) => promise<void>;
 }
 
 type DbBoatRow = {
@@ -59,31 +61,23 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
   onUpdateMaintenance,
 }) => {
   const [activeTab, setActiveTab] = useState<"boats" | "activities">("boats");
-
   const [editingBoat, setEditingBoat] = useState<Boat | null>(null);
-
   const [newBoatName, setNewBoatName] = useState("");
   const [newBoatType, setNewBoatType] = useState<BoatType>(BoatType.SAILING);
   const [newBoatImage, setNewBoatImage] = useState("");
-
   const [editBoatName, setEditBoatName] = useState("");
   const [editBoatType, setEditBoatType] = useState<BoatType>(BoatType.SAILING);
   const [editBoatImage, setEditBoatImage] = useState("");
-
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
-
   const [newActName, setNewActName] = useState("");
   const [newActDuration, setNewActDuration] = useState(2);
   const [newActTypes, setNewActTypes] = useState<BoatType[]>([BoatType.SAILING]);
   const [newActIsGeneral, setNewActIsGeneral] = useState(false);
-
   const [editActName, setEditActName] = useState("");
   const [editActDuration, setEditActDuration] = useState(2);
   const [editActTypes, setEditActTypes] = useState<BoatType[]>([]);
   const [editActIsGeneral, setEditActIsGeneral] = useState(false);
-
   const [maintenanceBoat, setMaintenanceBoat] = useState<Boat | null>(null);
-
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -929,7 +923,9 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
             onClose={() => setMaintenanceBoat(null)}
             boat={maintenanceBoat}
             records={maintenanceRecords}
-            onUpdateRecords={onUpdateMaintenance}
+
+            onSaveRecords={onSaveMaintenance}
+            onDeleteRecords={onDeleteMaintenance}
           />
         )}
       </div>

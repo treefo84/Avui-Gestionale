@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./hooks/useAuth";
 
@@ -292,6 +292,37 @@ useEffect(() => {
 
 
   // --- GET OR CREATE dbUser ---
+
+  const callAdminUsersFn = useCallback(async (payload: any) => {
+  const { data: sess, error: sessErr } = await supabase.auth.getSession();
+  const token = sess?.session?.access_token;
+
+  if (sessErr || !token) throw new Error("Sessione non disponibile (rifai login).");
+
+  const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`;
+
+  const res = await fetch(fnUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await res.text();
+  let json: any = null;
+  try { json = JSON.parse(text); } catch {}
+
+  if (!res.ok) {
+    const msg = json?.error ? String(json.error) : `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+
+  return json;
+}, []);
+
   const lastUidRef = useRef<string | null>(null);
   const notificationPanelRef = useRef<HTMLDivElement | null>(null);
 
@@ -326,6 +357,8 @@ useEffect(() => {
       setDbUser(existing);
       return;
     }
+
+    
 
     // 2) se non esiste, crealo con default sensati
     const payload = { auth_id: uid, email: mail, role: "HELPER", is_admin: false };
@@ -811,21 +844,52 @@ const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
   try {
     const authId = userId;
 
-    // 1) PATCH public.users
-    const patch: any = {};
-    if (typeof updates.name === "string") patch.name = updates.name.trim();
-    if (typeof updates.email === "string") patch.email = updates.email.trim() || null;
-    if (typeof updates.phoneNumber === "string") patch.phone_number = updates.phoneNumber.trim() || null;
-    if (typeof updates.birthDate === "string") patch.birth_date = updates.birthDate || null;
-    if (typeof updates.role !== "undefined") patch.role = updates.role;
-    if (typeof updates.isAdmin === "boolean") patch.is_admin = updates.isAdmin;
-    if (typeof updates.avatar === "string") patch.avatar_url = updates.avatar;
+    const { data: sess, error: sessErr } = await supabase.auth.getSession();
+    const token = sess?.session?.access_token;
 
-    if (Object.keys(patch).length) {
-      const { error } = await supabase.from("users").update(patch).eq("auth_id", authId);
-      if (error) {
-        console.error("[USERS][update] DB error:", error);
-        setNotificationToast({ message: `Errore salvataggio utente: ${error.message}`, type: "error" });
+    if (sessErr || !token) {
+      setNotificationToast({ message: "Sessione non disponibile.", type: "error" });
+      return;
+    }
+
+    const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`;
+
+    // 1) update profilo (public.users + auth email)
+    const profilePayload: any = {
+      action: "update_user",
+      auth_id: authId,
+    };
+
+    if (typeof updates.name === "string") profilePayload.name = updates.name;
+    if (typeof updates.email === "string") profilePayload.email = updates.email;
+    if (typeof updates.role !== "undefined") profilePayload.role = updates.role;
+    if (typeof updates.isAdmin === "boolean") profilePayload.is_admin = updates.isAdmin;
+    if (typeof updates.phoneNumber === "string") profilePayload.phone_number = updates.phoneNumber;
+    if (typeof updates.birthDate === "string") profilePayload.birth_date = updates.birthDate;
+    if (typeof updates.avatar === "string") profilePayload.avatar_url = updates.avatar;
+
+    const hasProfilePatch = Object.keys(profilePayload).length > 2;
+
+    if (hasProfilePatch) {
+      const res = await fetch(fnUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(profilePayload),
+      });
+
+      const text = await res.text();
+      let json: any = null;
+      try { json = JSON.parse(text); } catch {}
+
+      if (!res.ok) {
+        setNotificationToast({
+          message: json?.error ? `Errore utente: ${json.error}` : `Errore update utente (HTTP ${res.status})`,
+          type: "error",
+        });
         return;
       }
     }
@@ -834,18 +898,6 @@ const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
     const passRaw = (updates as any)?.password;
     const newPass = typeof passRaw === "string" ? passRaw.trim() : "";
     if (newPass.length) {
-      const { data: sess, error: sessErr } = await supabase.auth.getSession();
-      
-      const token = sess?.session?.access_token;
-
-      if (sessErr || !token) {
-        console.error("[USERS][pwd] session error:", sessErr);
-        setNotificationToast({ message: "Sessione non disponibile per reset password.", type: "error" });
-        return;
-      }
-
-      const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`;
-
       const res = await fetch(fnUrl, {
         method: "POST",
         headers: {
@@ -866,7 +918,6 @@ const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
       try { json = JSON.parse(text); } catch {}
 
       if (!res.ok) {
-        console.error("[USERS][pwd] HTTP", res.status, text);
         setNotificationToast({
           message: json?.error ? `Errore password: ${json.error}` : `Errore reset password (HTTP ${res.status})`,
           type: "error",
@@ -875,20 +926,8 @@ const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
       }
     }
 
-    setUsers(prev =>
-  prev.map(u =>
-    u.id === authId
-      ? { ...u, ...updates }
-      : u
-  )
-);
-
-
-    // riallinea dbUser se sto modificando me stesso
-    if (currentUser && authId === currentUser.id) {
-      const { data } = await supabase.from("users").select("*").eq("auth_id", authId).maybeSingle();
-      if (data) setDbUser(data as any);
-    }
+    // 3) reload lista utenti (fonte di verità)
+    await loadUsersFromDb();
 
     setNotificationToast({ message: "Utente aggiornato ✅", type: "success" });
   } catch (e) {
@@ -1356,6 +1395,68 @@ setUsers(mapped);
   console.log("[LOAD users] rows:", mapped.length);
 };
 
+const loadMaintenanceFromDb = async () => {
+  const { data, error } = await supabase
+    .from("maintenance_records")
+    .select("*")
+    .order("date", { ascending: false });
+
+  if (error) {
+    console.error("[LOAD maintenance_records] error:", error);
+    return;
+  }
+
+  const mapped: MaintenanceRecord[] = (data ?? []).map((r: any) => ({
+    id: r.id,
+    boatId: r.boat_id,
+    date: String(r.date).slice(0, 10),
+    description: r.description ?? "",
+    status: (r.status as MaintenanceStatus) ?? MaintenanceStatus.PENDING,
+    expirationDate: r.expiration_date ? String(r.expiration_date).slice(0, 10) : null,
+  })) as any;
+
+  setMaintenanceRecords(mapped);
+};
+
+
+const saveMaintenanceRecord = async (rec: MaintenanceRecord) => {
+  const payload: any = {
+    id: rec.id,
+    boat_id: rec.boatId,
+    date: rec.date,
+    description: rec.description ?? "",
+    status: rec.status ?? MaintenanceStatus.PENDING,
+    expiration_date: rec.expirationDate || null,
+  };
+
+  const { error } = await supabase
+    .from("maintenance_records")
+    .upsert(payload, { onConflict: "id" });
+
+  if (error) {
+    console.error("[UPSERT maintenance_records] error:", error, payload);
+    setNotificationToast({ message: "Errore salvataggio manutenzione.", type: "error" });
+    return;
+  }
+
+  await loadMaintenanceFromDb();
+  setNotificationToast({ message: "Manutenzione salvata ✅", type: "success" });
+};
+
+
+const deleteMaintenanceRecord = async (id: string) => {
+  if (!confirm("Eliminare questa voce di manutenzione?")) return;
+
+  const { error } = await supabase.from("maintenance_records").delete().eq("id", id);
+  if (error) {
+    console.error("[DELETE maintenance_records] error:", error);
+    setNotificationToast({ message: "Errore eliminazione manutenzione.", type: "error" });
+    return;
+  }
+
+  await loadMaintenanceFromDb();
+  setNotificationToast({ message: "Manutenzione eliminata ✅", type: "success" });
+};
 
 
 const loadGeneralEventsFromDb = async () => {
@@ -1429,6 +1530,13 @@ const loadNotificationsFromDb = async (userId?: string | null) => {
   setNotifications(mapped);
   console.log("[A8][LOAD notifications] rows:", mapped.length);
 };
+
+
+useEffect(() => {
+  if (!isLoggedIn) return;
+  loadMaintenanceFromDb();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [isLoggedIn]);
 
 
 useEffect(() => {
@@ -1601,26 +1709,49 @@ useEffect(() => {
 };
 
 
+const handleRemoveUser = async (userId: string) => {
+  if (userId === currentUserId) return;
+  if (!confirm("Vuoi eliminare questo utente definitivamente?")) return;
 
-  const handleRemoveUser = (userId: string) => {
-    if (userId === currentUserId) return;
-    setUsers((prev) => prev.filter((u) => u.id !== userId));
-  };
+  try {
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess?.session?.access_token;
+    if (!token) {
+      setNotificationToast({ message: "Sessione non disponibile.", type: "error" });
+      return;
+    }
 
-  const handleToggleRole = (userId: string) => {
-    if (userId === currentUserId) return;
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          let newRole = Role.HELPER;
-          if (u.role === Role.HELPER) newRole = Role.INSTRUCTOR;
-          else if (u.role === Role.INSTRUCTOR) newRole = Role.MANAGER;
-          return { ...u, role: newRole };
-        }
-        return u;
-      })
-    );
-  };
+    const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`;
+
+    const res = await fetch(fnUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ action: "delete_user", auth_id: userId }),
+    });
+
+    const text = await res.text();
+    let json: any = null;
+    try { json = JSON.parse(text); } catch {}
+
+    if (!res.ok) {
+      setNotificationToast({
+        message: json?.error ? `Errore eliminazione: ${json.error}` : `Errore delete (HTTP ${res.status})`,
+        type: "error",
+      });
+      return;
+    }
+
+    await loadUsersFromDb();
+    setNotificationToast({ message: "Utente eliminato ✅", type: "success" });
+  } catch (e) {
+    console.error("[USERS][delete] unexpected:", e);
+    setNotificationToast({ message: "Errore inatteso eliminazione utente.", type: "error" });
+  }
+};
 
 
 const getHoverData = () => {
@@ -2064,6 +2195,19 @@ const unreadCount = myNotifications.reduce((acc, n) => acc + (n.read ? 0 : 1), 0
 />
 
 
+{/* Fleet Management (admin) */}
+{isFleetManagementOpen && (
+  <FleetManagementPage
+    isOpen={isFleetManagementOpen}
+    onClose={() => setIsFleetManagementOpen(false)}
+    boats={boats}
+    activities={activities}
+    maintenanceRecords={maintenanceRecords}
+    onUpdateBoats={setBoats}
+    onUpdateActivities={setActivities}
+    onUpdateMaintenance={setMaintenanceRecords}
+  />
+)}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-6">
