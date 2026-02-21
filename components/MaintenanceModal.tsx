@@ -10,7 +10,8 @@ interface MaintenanceModalProps {
   onClose: () => void;
   boat: Boat;
   records: MaintenanceRecord[];
-  onUpdateRecords: (records: MaintenanceRecord[]) => void;
+  onSaveRecords: (records: MaintenanceRecord[]) => Promise<void> | void;
+  onDeleteRecords: (id: string) => Promise<void> | void;
 }
 
 // Helper to parse YYYY-MM-DD date strings safely to avoid issues with platform-specific Date implementations

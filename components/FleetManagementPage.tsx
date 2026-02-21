@@ -16,7 +16,6 @@ import {
   Wrench,
 } from "lucide-react";
 import { MaintenanceModal } from "./MaintenanceModal";
-import { promises } from "dns";
 
 interface FleetManagementPageProps {
   isOpen: boolean;
@@ -28,8 +27,8 @@ interface FleetManagementPageProps {
 
   onUpdateBoats: (boats: Boat[]) => void;
   onUpdateActivities: (activities: Activity[]) => void;
-  onSaveMaintenance: (records: MaintenanceRecord[]) => promise<void>;
-    onDeleteMaintenance: (id: string) => promise<void>;
+  onSaveMaintenance: (records: MaintenanceRecord[]) => Promise<void>;
+  onDeleteMaintenance: (id: string) => Promise<void>;
 }
 
 type DbBoatRow = {
@@ -918,12 +917,11 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
         </div>
 
         {maintenanceBoat && (
-          <MaintenanceModal
+            <MaintenanceModal
             isOpen={!!maintenanceBoat}
             onClose={() => setMaintenanceBoat(null)}
             boat={maintenanceBoat}
             records={maintenanceRecords}
-
             onSaveRecords={onSaveMaintenance}
             onDeleteRecords={onDeleteMaintenance}
           />
