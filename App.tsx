@@ -1412,12 +1412,12 @@ setUsers(mapped);
 
 const loadMaintenanceFromDb = async () => {
   const { data, error } = await supabase
-    .from("maintenance_records")
-    .select("*")
+    .from("maintenance_logs")
+    .select("id,boat_id,date,description,created_by,created_at,status,expiration_date")
     .order("date", { ascending: false });
 
   if (error) {
-    console.error("[LOAD maintenance_records] error:", error);
+    console.error("[LOAD maintenance_logs] error:", error);
     return;
   }
 
@@ -1426,11 +1426,15 @@ const loadMaintenanceFromDb = async () => {
     boatId: r.boat_id,
     date: String(r.date).slice(0, 10),
     description: r.description ?? "",
-    status: (r.status as MaintenanceStatus) ?? MaintenanceStatus.PENDING,
+    createdBy: r.created_by ?? null,
+    createdAt: r.created_at ?? null,
+
+    status: (String(r.status ?? "PENDING").toUpperCase() as any),
     expirationDate: r.expiration_date ? String(r.expiration_date).slice(0, 10) : null,
   })) as any;
 
   setMaintenanceRecords(mapped);
+  console.log("[LOAD maintenance_logs] rows:", mapped.length);
 };
 
 
@@ -1440,22 +1444,23 @@ const saveMaintenanceRecord = async (rec: MaintenanceRecord) => {
     boat_id: rec.boatId,
     date: rec.date,
     description: rec.description ?? "",
-    status: rec.status ?? MaintenanceStatus.PENDING,
-    expiration_date: rec.expirationDate || null,
+    created_by: rec.createdBy ?? null,
+
+    status: (String((rec as any).status ?? "PENDING").toUpperCase()),
+    expiration_date: (rec as any).expirationDate || null,
   };
 
   const { error } = await supabase
-    .from("maintenance_records")
+    .from("maintenance_logs")
     .upsert(payload, { onConflict: "id" });
 
   if (error) {
-    console.error("[UPSERT maintenance_records] error:", error, payload);
-    setNotificationToast({ message: "Errore salvataggio manutenzione.", type: "error" });
+    console.error("[SAVE maintenance_logs] error:", error, payload);
     return;
   }
 
+  // ricarico per essere sicuro che al refresh rimanga tutto
   await loadMaintenanceFromDb();
-  setNotificationToast({ message: "Manutenzione salvata ✅", type: "success" });
 };
 
 
