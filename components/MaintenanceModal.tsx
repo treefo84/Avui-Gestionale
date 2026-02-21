@@ -1,4 +1,4 @@
-
+import { supabase } from "../supabaseClient";
 import React, { useState } from 'react';
 import { Boat, MaintenanceRecord, MaintenanceStatus, RecurrenceUnit } from '../types';
 import { X, Wrench, CheckCircle2, Circle, Clock, Trash2, Calendar, AlertTriangle, Filter, RefreshCw, Repeat } from 'lucide-react';
@@ -36,6 +36,54 @@ export const MaintenanceModal: React.FC<MaintenanceModalProps> = ({
   const [recurrenceVal, setRecurrenceVal] = useState<number | ''>('');
   const [recurrenceUnit, setRecurrenceUnit] = useState<RecurrenceUnit>('years');
 
+  const getCurrentAuthId = async (): Promise<string | null> => {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) return null;
+  return data.user?.id ?? null;
+};
+
+const dbToRecord = (r: any): MaintenanceRecord => ({
+  id: r.id,
+  boatId: r.boat_id,
+  description: r.description ?? "",
+  date: String(r.date).slice(0, 10),
+  expirationDate: r.expiration_date ? String(r.expiration_date).slice(0, 10) : undefined,
+  status: (r.status as MaintenanceStatus) ?? MaintenanceStatus.TODO,
+  recurrenceInterval: r.recurrence_interval ?? undefined,
+  recurrenceUnit: r.recurrence_unit ?? undefined,
+});
+
+const saveToDb = async (rec: MaintenanceRecord) => {
+  const createdBy = await getCurrentAuthId();
+
+  const payload: any = {
+    id: rec.id,
+    boat_id: rec.boatId,
+    date: rec.date,
+    description: rec.description ?? "",
+    status: rec.status ?? MaintenanceStatus.TODO,
+    expiration_date: rec.expirationDate ?? null,
+    recurrence_interval: rec.recurrenceInterval ?? null,
+    recurrence_unit: rec.recurrenceUnit ?? null,
+    created_by: createdBy, // se la colonna esiste
+  };
+
+  // upsert: se esiste aggiorna, se non esiste inserisce
+  const { data, error } = await supabase
+    .from("maintenance_logs")
+    .upsert(payload, { onConflict: "id" })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return dbToRecord(data);
+};
+
+const deleteFromDb = async (id: string) => {
+  const { error } = await supabase.from("maintenance_logs").delete().eq("id", id);
+  if (error) throw error;
+};
+
   if (!isOpen) return null;
 
   const boatRecords = records
@@ -54,33 +102,46 @@ export const MaintenanceModal: React.FC<MaintenanceModalProps> = ({
       return true;
   });
 
-  const handleAdd = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!desc) return;
+ const handleAdd = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!desc) return;
 
-      const newRecord: MaintenanceRecord = {
-          id: crypto.randomUUID(),
-          boatId: boat.id,
-          description: desc,
-          date,
-          expirationDate: expDate || undefined,
-          status,
-          recurrenceInterval: recurrenceVal ? Number(recurrenceVal) : undefined,
-          recurrenceUnit: recurrenceVal ? recurrenceUnit : undefined
-      };
-
-      onUpdateRecords([...records, newRecord]);
-      setDesc('');
-      setExpDate('');
-      setStatus(MaintenanceStatus.TODO);
-      setRecurrenceVal('');
+  const newRecord: MaintenanceRecord = {
+    id: crypto.randomUUID(),
+    boatId: boat.id,
+    description: desc,
+    date,
+    expirationDate: expDate || undefined,
+    status,
+    recurrenceInterval: recurrenceVal ? Number(recurrenceVal) : undefined,
+    recurrenceUnit: recurrenceVal ? recurrenceUnit : undefined,
   };
 
-  const handleDelete = (id: string) => {
-      if(confirm("Eliminare questa voce dal diario?")) {
-          onUpdateRecords(records.filter(r => r.id !== id));
-      }
-  };
+  try {
+    const saved = await saveToDb(newRecord);
+    onUpdateRecords([...records, saved]);
+
+    setDesc("");
+    setExpDate("");
+    setStatus(MaintenanceStatus.TODO);
+    setRecurrenceVal("");
+  } catch (err: any) {
+    console.error("[maintenance][add] error:", err);
+    alert(`Errore salvataggio manutenzione: ${err?.message ?? String(err)}`);
+  }
+};
+
+const handleDelete = async (id: string) => {
+  if (!confirm("Eliminare questa voce dal diario?")) return;
+
+  try {
+    await deleteFromDb(id);
+    onUpdateRecords(records.filter((r) => r.id !== id));
+  } catch (err: any) {
+    console.error("[maintenance][delete] error:", err);
+    alert(`Errore eliminazione manutenzione: ${err?.message ?? String(err)}`);
+  }
+};
 
   const calculateNextExpiration = (baseDate: Date, val: number, unit: RecurrenceUnit): Date => {
       if (unit === 'years') return addYears(baseDate, val);
@@ -88,38 +149,51 @@ export const MaintenanceModal: React.FC<MaintenanceModalProps> = ({
       return addDays(baseDate, val);
   };
 
-  const handleToggleStatus = (record: MaintenanceRecord) => {
-      const isMarkingDone = record.status !== MaintenanceStatus.DONE;
-      const newStatus = isMarkingDone ? MaintenanceStatus.DONE : MaintenanceStatus.TODO;
-      
-      let updatedRecords = records.map(r => r.id === record.id ? { ...r, status: newStatus } : r);
+const handleToggleStatus = async (record: MaintenanceRecord) => {
+  const isMarkingDone = record.status !== MaintenanceStatus.DONE;
+  const newStatus = isMarkingDone ? MaintenanceStatus.DONE : MaintenanceStatus.TODO;
 
-      // Automatic rescheduling logic
-      if (isMarkingDone && record.recurrenceInterval && record.recurrenceUnit) {
-          const unitLabel = record.recurrenceUnit === 'years' ? 'Anni' : (record.recurrenceUnit === 'months' ? 'Mesi' : 'Giorni');
-          
-          if (confirm(`Hai completato "${record.description}".\nVuoi programmare la prossima scadenza tra ${record.recurrenceInterval} ${unitLabel}?`)) {
-              
-              const today = new Date();
-              const nextExpDate = calculateNextExpiration(today, record.recurrenceInterval, record.recurrenceUnit);
-              
-              const nextRecord: MaintenanceRecord = {
-                  id: crypto.randomUUID(),
-                  boatId: record.boatId,
-                  description: record.description, // Keep same description
-                  status: MaintenanceStatus.TODO,
-                  date: format(today, 'yyyy-MM-dd'), // Created today
-                  expirationDate: format(nextExpDate, 'yyyy-MM-dd'),
-                  recurrenceInterval: record.recurrenceInterval, // Keep recurrence chain
-                  recurrenceUnit: record.recurrenceUnit
-              };
+  try {
+    // 1) aggiorna status del record corrente su DB
+    const updated = await saveToDb({ ...record, status: newStatus });
 
-              updatedRecords = [...updatedRecords, nextRecord];
-          }
+    let updatedRecords = records.map((r) => (r.id === record.id ? updated : r));
+
+    // 2) se completato e ha ricorrenza, proponi prossima scadenza e SALVALA su DB
+    if (isMarkingDone && record.recurrenceInterval && record.recurrenceUnit) {
+      const unitLabel =
+        record.recurrenceUnit === "years" ? "Anni" : record.recurrenceUnit === "months" ? "Mesi" : "Giorni";
+
+      if (
+        confirm(
+          `Hai completato "${record.description}".\nVuoi programmare la prossima scadenza tra ${record.recurrenceInterval} ${unitLabel}?`
+        )
+      ) {
+        const today = new Date();
+        const nextExpDate = calculateNextExpiration(today, record.recurrenceInterval, record.recurrenceUnit);
+
+        const nextRecord: MaintenanceRecord = {
+          id: crypto.randomUUID(),
+          boatId: record.boatId,
+          description: record.description,
+          status: MaintenanceStatus.TODO,
+          date: format(today, "yyyy-MM-dd"),
+          expirationDate: format(nextExpDate, "yyyy-MM-dd"),
+          recurrenceInterval: record.recurrenceInterval,
+          recurrenceUnit: record.recurrenceUnit,
+        };
+
+        const savedNext = await saveToDb(nextRecord);
+        updatedRecords = [...updatedRecords, savedNext];
       }
+    }
 
-      onUpdateRecords(updatedRecords);
-  };
+    onUpdateRecords(updatedRecords);
+  } catch (err: any) {
+    console.error("[maintenance][toggle] error:", err);
+    alert(`Errore aggiornamento manutenzione: ${err?.message ?? String(err)}`);
+  }
+};
 
   return (
     <div 
