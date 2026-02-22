@@ -155,27 +155,36 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setForcePasswordChange(false);
   };
 
-  const handleEditSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingUser) return;
+ const handleEditSave = (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!editingUser) return;
 
-    const updates: Partial<User> = {
-      name: editName,
-      email: editEmail,
-      phoneNumber: editPhone,
-      birthDate: editBirthDate,
-      role: editRole,
-      isAdmin: editIsAdmin,
-    };
+  const updates: Partial<User> = {};
 
-    if (editNewPassword.trim().length > 0) {
-      updates.password = editNewPassword.trim();
-      updates.mustChangePassword = forcePasswordChange;
-    }
+  // manda solo ciò che cambia davvero
+  if (editName !== editingUser.name) updates.name = editName;
+  if (editEmail !== editingUser.email) updates.email = editEmail;
+  if (editPhone !== (editingUser.phoneNumber ?? "")) updates.phoneNumber = editPhone;
+  if (editBirthDate !== (editingUser.birthDate ?? "")) updates.birthDate = editBirthDate;
+  if (editIsAdmin !== !!editingUser.isAdmin) updates.isAdmin = editIsAdmin;
 
-    onUpdateUser(editingUser.id, updates);
+  // IMPORTANTISSIMO: role solo se cambia
+  if (editRole !== editingUser.role) updates.role = editRole;
+
+  if (editNewPassword.trim().length > 0) {
+    (updates as any).password = editNewPassword.trim();
+    (updates as any).mustChangePassword = forcePasswordChange;
+  }
+
+  // se non c'è niente da salvare, chiudi e basta
+  if (Object.keys(updates).length === 0) {
     setEditingUser(null);
-  };
+    return;
+  }
+
+  onUpdateUser(editingUser.id, updates);
+  setEditingUser(null);
+};
 
   const handleAvatarUpdate = (seed: string) => {
     if (!editingUser) return;

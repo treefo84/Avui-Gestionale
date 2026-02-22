@@ -1,4 +1,4 @@
-const VERSION = "vJWT-2026-02-09-01";
+const VERSION = "vJWT-2026-02-09-100";
 
 // supabase/functions/admin-users/index.ts
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -26,10 +26,14 @@ function json(status: number, payload: any) {
 
 function normRole(input: any) {
   const r = String(input ?? "HELPER").trim().toUpperCase();
-  // normalizza eventuali valori italiani che ti sono rimasti nel DB/app
+
   if (r === "AIUTANTE") return "HELPER";
   if (r === "COMANDANTE") return "INSTRUCTOR";
-  if (r === "MANAGER" || r === "HELPER" || r === "INSTRUCTOR") return r;
+  if (r === "ISTRUTTORE") return "INSTRUCTOR";
+  if (r === "RISERVA") return "RESERVE";       // ✅ aggiungi
+
+  if (r === "MANAGER" || r === "HELPER" || r === "INSTRUCTOR" || r === "RESERVE") return r; // ✅ aggiungi RESERVE
+
   return "HELPER";
 }
 
@@ -68,7 +72,16 @@ Deno.serve(async (req) => {
     const callerUid = userData.user.id;
 
     // client admin
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const admin = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+);
 
     // verifica admin nel DB
     const { data: callerRow, error: callerDbErr } = await admin

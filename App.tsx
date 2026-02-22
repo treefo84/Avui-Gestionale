@@ -578,6 +578,64 @@ useEffect(() => {
     }
   };
 
+  const ensureMaintenanceExpiringNotifications = async () => {
+  if (!currentUser?.isAdmin) return;
+  if (!maintenanceRecords.length) return;
+
+  const today = new Date();
+
+  // prendo solo record con scadenza nei prossimi 30 giorni (incluso oggi), non già DONE
+  const expiring = maintenanceRecords.filter((r) => {
+    if (!r.expirationDate) return false;
+    if (r.status === MaintenanceStatus.DONE) return false;
+
+    const daysLeft = differenceInDays(parseDate(r.expirationDate), today);
+    return daysLeft >= 0 && daysLeft <= 30;
+  });
+
+  if (!expiring.length) return;
+
+  // preparo payload notifiche: 1 per record, con ref_key unico
+  const nowIso = new Date().toISOString();
+
+  const rows = expiring.map((r) => {
+    const boatName = boatsById.get(r.boatId)?.name ?? "Barca";
+    const daysLeft = differenceInDays(parseDate(r.expirationDate!), today);
+
+    const refKey = `MAINT_EXP_30D:${r.id}:${String(r.expirationDate).slice(0, 10)}`;
+
+    return {
+      user_id: currentUser.id,
+      type: "MAINTENANCE_EXPIRING",
+      ref_key: refKey,
+      message: `⚠️ Manutenzione in scadenza: "${r.description}" su ${boatName} (tra ${daysLeft} gg)`,
+      read: false,
+      data: {
+        recordId: r.id,
+        boatId: r.boatId,
+        expirationDate: String(r.expirationDate).slice(0, 10),
+        daysLeft,
+      },
+      created_at: nowIso,
+    };
+  });
+
+  // upsert: se esiste già (grazie all'indice unique), non duplica
+  const { error } = await supabase
+    .from("notifications")
+    .upsert(rows, { onConflict: "user_id,type,ref_key" });
+
+  if (error) {
+    console.error("[MAINT][NOTIFS] upsert error:", error);
+    return;
+  }
+
+  console.log("[MAINT][NOTIF] rows to upsert", rows);
+
+  // ricarico le notifiche così le vedi subito in campanella
+  await loadNotificationsFromDb();
+};
+
   // ✅ LOAD DATI (UNA SOLA VOLTA, non duplicata)
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -790,6 +848,7 @@ useEffect(() => {
     checkNextMonthAvailability();
     checkMaintenanceExpirations();
     checkForBirthdays();
+    ensureMaintenanceExpiringNotifications
   }, [isLoggedIn, currentUser?.id, currentUser?.role, boats.length, maintenanceRecords.length, availabilities.length, users.length]);
 
   // --- ACTIONS ---
@@ -853,6 +912,34 @@ useEffect(() => {
   await handleUpdateUser(userId, { role: newRole });
 };
 
+
+// ---- helper: chiama la Edge Function admin-users e logga la risposta ----
+async function callAdminFn(payload: any, token: string) {
+  const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`;
+
+  console.log("[ADMIN FN CALL]", payload);
+
+  const res = await fetch(fnUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await res.text();
+  console.log("[ADMIN FN RESPONSE STATUS]", res.status);
+  console.log("[ADMIN FN RESPONSE TEXT]", text);
+
+  let json: any = null;
+  try { json = JSON.parse(text); } catch {}
+
+  return { res, text, json };
+}
+
+
   // App.tsx
 
 const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
@@ -867,9 +954,14 @@ const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
       return;
     }
 
-    const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`;
+    // ruolo attuale (per capire se è davvero cambiato)
+    const current = users.find((u) => u.id === authId);
+    const currentRole = current?.role;
 
+    // -------------------------
     // 1) update profilo (public.users + auth email)
+    // ⚠️ QUI NON PASSARE MAI role
+    // -------------------------
     const profilePayload: any = {
       action: "update_user",
       auth_id: authId,
@@ -877,83 +969,84 @@ const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
 
     if (typeof updates.name === "string") profilePayload.name = updates.name;
     if (typeof updates.email === "string") profilePayload.email = updates.email;
-    if (typeof updates.role !== "undefined") profilePayload.role = updates.role;
     if (typeof updates.isAdmin === "boolean") profilePayload.is_admin = updates.isAdmin;
     if (typeof updates.phoneNumber === "string") profilePayload.phone_number = updates.phoneNumber;
     if (typeof updates.birthDate === "string") profilePayload.birth_date = updates.birthDate;
     if (typeof updates.avatar === "string") profilePayload.avatar_url = updates.avatar;
 
     const hasProfilePatch = Object.keys(profilePayload).length > 2;
-
     if (hasProfilePatch) {
-      const res = await fetch(fnUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(profilePayload),
-      });
-
-      const text = await res.text();
-      let json: any = null;
-      try { json = JSON.parse(text); } catch {}
-
+      const { res, json, text } = await callAdminFn(profilePayload, token);
       if (!res.ok) {
         setNotificationToast({
-          message: json?.error ? `Errore utente: ${json.error}` : `Errore update utente (HTTP ${res.status})`,
+          message: json?.error ? `Errore utente: ${json.error}` : (text || `Errore update_user (HTTP ${res.status})`),
           type: "error",
         });
         return;
       }
     }
 
-    // 2) password reset (se presente)
+    // -------------------------
+    // 2) change role (SEPARATO) -> set_role
+    // -------------------------
+    if (typeof (updates as any).role !== "undefined") {
+      const nextRole = (updates as any).role;
+
+      // chiama set_role solo se è cambiato davvero
+      if (!currentRole || nextRole !== currentRole) {
+        const { res, json, text } = await callAdminFn(
+          {
+            action: "set_role",
+            auth_id: authId,
+            role: nextRole,
+          },
+          token
+        );
+
+        if (!res.ok) {
+          setNotificationToast({
+            message: json?.error ? `Errore ruolo: ${json.error}` : (text || `Errore set_role (HTTP ${res.status})`),
+            type: "error",
+          });
+          return;
+        }
+      }
+    }
+
+    // -------------------------
+    // 3) password reset (SEPARATO) -> set_password
+    // -------------------------
     const passRaw = (updates as any)?.password;
     const newPass = typeof passRaw === "string" ? passRaw.trim() : "";
+
     if (newPass.length) {
-      const res = await fetch(fnUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      const { res, json, text } = await callAdminFn(
+        {
           action: "set_password",
           auth_id: authId,
           password: newPass,
           must_change_password: !!(updates as any).mustChangePassword,
-        }),
-      });
-
-      const text = await res.text();
-      let json: any = null;
-      try { json = JSON.parse(text); } catch {}
+        },
+        token
+      );
 
       if (!res.ok) {
         setNotificationToast({
-          message: json?.error ? `Errore password: ${json.error}` : `Errore reset password (HTTP ${res.status})`,
+          message: json?.error ? `Errore password: ${json.error}` : (text || `Errore set_password (HTTP ${res.status})`),
           type: "error",
         });
         return;
       }
     }
 
-    // 3) reload lista utenti (fonte di verità)
+    // 4) reload lista utenti (fonte di verità)
     await loadUsersFromDb();
-
     setNotificationToast({ message: "Utente aggiornato ✅", type: "success" });
   } catch (e) {
     console.error("[USERS][update] unexpected:", e);
     setNotificationToast({ message: "Errore inatteso aggiornamento utente.", type: "error" });
   }
 };
-
-
-
-
   const handleUpdateAssignment = async (newAssignment: Assignment) => {
     // UI ottimistica
     setAssignments((prev) => {
@@ -1774,6 +1867,29 @@ const handleRemoveUser = async (userId: string) => {
 };
 
 
+const maintenanceByDate = useMemo(() => {
+  const expiring = new Map<string, MaintenanceRecord[]>();
+  const performed = new Map<string, MaintenanceRecord[]>();
+
+  for (const r of maintenanceRecords) {
+    const date = (r.date ?? "").slice(0, 10);
+    if (date) {
+      const arr = performed.get(date) ?? [];
+      arr.push(r);
+      performed.set(date, arr);
+    }
+
+    const exp = (r.expirationDate ?? "").slice(0, 10);
+    if (exp && r.status !== MaintenanceStatus.DONE) {
+      const arr = expiring.get(exp) ?? [];
+      arr.push(r);
+      expiring.set(exp, arr);
+    }
+  }
+
+  return { expiring, performed };
+}, [maintenanceRecords]);
+
 const getHoverData = () => {
   if (!hoveredDate) return [];
 
@@ -1848,6 +1964,15 @@ const getHoverData = () => {
 };
 
 
+const hoverMaintenance = React.useMemo(() => {
+  if (!hoveredDate) return { expiring: [], performed: [] };
+
+  return {
+    expiring: maintenanceByDate.expiring.get(hoveredDate) ?? [],
+    performed: maintenanceByDate.performed.get(hoveredDate) ?? [],
+  };
+}, [hoveredDate, maintenanceByDate]);
+
   const navigateCalendar = (direction: "prev" | "next") => {
     if (calendarView === "month") {
       setCurrentDate((prev) => (direction === "prev" ? addMonths(prev, -1) : addMonths(prev, 1)));
@@ -1914,28 +2039,7 @@ const generalEventsByDate = useMemo(() => {
 }, [generalEvents]);
 
 // 5) Manutenzioni indicizzate (expiring + performed)
-const maintenanceByDate = useMemo(() => {
-  const expiring = new Map<string, MaintenanceRecord[]>();
-  const performed = new Map<string, MaintenanceRecord[]>();
 
-  for (const r of maintenanceRecords) {
-    const date = (r.date ?? "").slice(0, 10);
-    if (date) {
-      const arr = performed.get(date) ?? [];
-      arr.push(r);
-      performed.set(date, arr);
-    }
-
-    const exp = (r.expirationDate ?? "").slice(0, 10);
-    if (exp && r.status !== MaintenanceStatus.DONE) {
-      const arr = expiring.get(exp) ?? [];
-      arr.push(r);
-      expiring.set(exp, arr);
-    }
-  }
-
-  return { expiring, performed };
-}, [maintenanceRecords]);
 
 // 6) Calendar events: indicizza OGNI giorno del range
 const calEventsByDate = useMemo(() => {
@@ -2191,8 +2295,15 @@ const unreadCount = myNotifications.reduce((acc, n) => acc + (n.read ? 0 : 1), 0
         !isUserManagementOpen &&
         !isFleetManagementOpen &&
         !isNotificationOpen && (
-          <DayHoverModal date={hoveredDate} position={mousePos} data={getHoverData() as any} notes={getDayNotesForHover()} />
+          <DayHoverModal
+  date={hoveredDate}
+  position={mousePos}
+  data={getHoverData() as any}
+  notes={getDayNotesForHover()}
+  maintenance={hoverMaintenance as any}
+/>
         )}
+
 
       {/* Navbar */}
       <AppNavbar

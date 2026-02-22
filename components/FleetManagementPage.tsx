@@ -27,8 +27,7 @@ interface FleetManagementPageProps {
 
   onUpdateBoats: (boats: Boat[]) => void;
   onUpdateActivities: (activities: Activity[]) => void;
-  onSaveMaintenance: (records: MaintenanceRecord[]) => Promise<void>;
-  onDeleteMaintenance: (id: string) => Promise<void>;
+
 }
 
 type DbBoatRow = {
@@ -58,6 +57,7 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
   onUpdateBoats,
   onUpdateActivities,
   onUpdateMaintenance,
+ 
 }) => {
   const [activeTab, setActiveTab] = useState<"boats" | "activities">("boats");
   const [editingBoat, setEditingBoat] = useState<Boat | null>(null);
@@ -918,13 +918,12 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
 
         {maintenanceBoat && (
             <MaintenanceModal
-            isOpen={!!maintenanceBoat}
-            onClose={() => setMaintenanceBoat(null)}
-            boat={maintenanceBoat}
-            records={maintenanceRecords}
-            onSaveRecords={onSaveMaintenance}
-            onDeleteRecords={onDeleteMaintenance}
-          />
+  isOpen={!!maintenanceBoat}
+  onClose={() => setMaintenanceBoat(null)}
+  boat={maintenanceBoat}
+  records={maintenanceRecords}
+  onUpdateRecords={onUpdateMaintenance}
+/>
         )}
       </div>
     </div>
