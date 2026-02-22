@@ -27,12 +27,13 @@ function json(status: number, payload: any) {
 function normRole(input: any) {
   const r = String(input ?? "HELPER").trim().toUpperCase();
 
-  if (r === "AIUTANTE") return "HELPER";
-  if (r === "COMANDANTE") return "INSTRUCTOR";
-  if (r === "ISTRUTTORE") return "INSTRUCTOR";
-  if (r === "RISERVA") return "RESERVE";       // ✅ aggiungi
+  if (r === "AIUTANTE" || r === "MOZZO") return "HELPER";
+  if (r === "COMANDANTE" || r === "ISTRUTTORE") return "INSTRUCTOR";
+  if (r === "RESPONSABILE") return "MANAGER";
 
-  if (r === "MANAGER" || r === "HELPER" || r === "INSTRUCTOR" || r === "RESERVE") return r; // ✅ aggiungi RESERVE
+  if (r === "RISERVA" || r === "RESERVE") return "RESERVE";
+
+  if (r === "MANAGER" || r === "HELPER" || r === "INSTRUCTOR" || r === "RESERVE") return r;
 
   return "HELPER";
 }
@@ -158,28 +159,45 @@ if (action === "create_user") {
 
 
 
-    if (action === "set_role") {
-      const authId = String(body.auth_id ?? "").trim();
-      const role = normRole(body.role);
-      if (!authId) return json(400, { error: "auth_id required" });
+   if (action === "set_role") {
+  const authId = String(body.auth_id ?? "").trim();
+  const role = normRole(body.role);
+  if (!authId) return json(400, { error: "auth_id required" });
 
-      const { error } = await admin.from("users").update({ role }).eq("auth_id", authId);
-      if (error) return json(400, { error: error.message });
+  const { data, error } = await admin
+    .from("users")
+    .update({ role })
+    .eq("auth_id", authId)
+    .select("auth_id, role")
+    .maybeSingle();
 
-      return json(200, { ok: true });
-    }
+  if (error) return json(400, { error: error.message });
 
-    if (action === "set_admin") {
-      const authId = String(body.auth_id ?? "").trim();
-      const isAdmin = !!body.is_admin;
-      if (!authId) return json(400, { error: "auth_id required" });
+  // ⚠️ questa è la chiave: se data è null -> NON hai aggiornato niente
+  if (!data) return json(404, { error: "user row not found (auth_id mismatch)" });
 
-      const { error } = await admin.from("users").update({ is_admin: isAdmin }).eq("auth_id", authId);
-      if (error) return json(400, { error: error.message });
+  return json(200, { ok: true, user: data });
+}
 
-      return json(200, { ok: true });
-    }
 
+if (action === "set_admin") {
+  const authId = String(body.auth_id ?? "").trim();
+  const isAdmin = !!body.is_admin;
+
+  if (!authId) return json(400, { error: "auth_id required" });
+
+  const { data, error } = await admin
+    .from("users")
+    .update({ is_admin: isAdmin })
+    .eq("auth_id", authId)
+    .select("auth_id,email,role,is_admin")
+    .maybeSingle();
+
+  if (error) return json(400, { error: error.message });
+  if (!data) return json(400, { error: "User row not found for auth_id" });
+
+  return json(200, { ok: true, user: data });
+}
 
     
 // SET PASSWORD - DELETE USER
@@ -223,14 +241,12 @@ if (action === "update_user") {
 
   if (typeof body.name === "string") patch.name = body.name.trim();
   if (typeof body.email === "string") patch.email = body.email.trim().toLowerCase() || null;
-  if (typeof body.role !== "undefined") patch.role = normRole(body.role);
-  if (typeof body.is_admin === "boolean") patch.is_admin = !!body.is_admin;
 
   if (typeof body.phone_number === "string") patch.phone_number = body.phone_number.trim() || null;
   if (typeof body.birth_date === "string") patch.birth_date = body.birth_date.trim() || null;
   if (typeof body.avatar_url === "string") patch.avatar_url = body.avatar_url.trim() || null;
 
-  // 1) aggiorna public.users
+  // 1) aggiorna public.users (solo profilo)
   if (Object.keys(patch).length) {
     const { error: dbErr } = await admin.from("users").update(patch).eq("auth_id", authId);
     if (dbErr) return json(400, { error: dbErr.message });
@@ -247,6 +263,8 @@ if (action === "update_user") {
 
   return json(200, { ok: true });
 }
+
+
 
     return json(400, { error: "unknown action" });
   } catch (e: any) {
