@@ -1325,11 +1325,6 @@ const App: React.FC = () => {
     }
 
 
-    if (asgErr) {
-      console.error("[A14][UPDATE assignments status] error:", asgErr);
-      setNotificationToast({ message: "Errore nel confermare/rifiutare l’incarico.", type: "error" });
-      return;
-    }
 
     // 3) DB + UI: segno la notifica come letta
     await supabase.from("notifications").update({ read: true }).eq("id", notif.id);
