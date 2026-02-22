@@ -155,36 +155,36 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setForcePasswordChange(false);
   };
 
- const handleEditSave = (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!editingUser) return;
+  const handleEditSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
 
-  const updates: Partial<User> = {};
+    const updates: Partial<User> = {};
 
-  // manda solo ciò che cambia davvero
-  if (editName !== editingUser.name) updates.name = editName;
-  if (editEmail !== editingUser.email) updates.email = editEmail;
-  if (editPhone !== (editingUser.phoneNumber ?? "")) updates.phoneNumber = editPhone;
-  if (editBirthDate !== (editingUser.birthDate ?? "")) updates.birthDate = editBirthDate;
-  if (editIsAdmin !== !!editingUser.isAdmin) updates.isAdmin = editIsAdmin;
+    // manda solo ciò che cambia davvero
+    if (editName !== editingUser.name) updates.name = editName;
+    if (editEmail !== editingUser.email) updates.email = editEmail;
+    if (editPhone !== (editingUser.phoneNumber ?? "")) updates.phoneNumber = editPhone;
+    if (editBirthDate !== (editingUser.birthDate ?? "")) updates.birthDate = editBirthDate;
+    if (editIsAdmin !== !!editingUser.isAdmin) updates.isAdmin = editIsAdmin;
 
-  // IMPORTANTISSIMO: role solo se cambia
-  if (editRole !== editingUser.role) updates.role = editRole;
+    // IMPORTANTISSIMO: role solo se cambia
+    if (editRole !== editingUser.role) updates.role = editRole;
 
-  if (editNewPassword.trim().length > 0) {
-    (updates as any).password = editNewPassword.trim();
-    (updates as any).mustChangePassword = forcePasswordChange;
-  }
+    if (editNewPassword.trim().length > 0) {
+      (updates as any).password = editNewPassword.trim();
+      (updates as any).mustChangePassword = forcePasswordChange;
+    }
 
-  // se non c'è niente da salvare, chiudi e basta
-  if (Object.keys(updates).length === 0) {
+    // se non c'è niente da salvare, chiudi e basta
+    if (Object.keys(updates).length === 0) {
+      setEditingUser(null);
+      return;
+    }
+
+    onUpdateUser(editingUser.id, updates);
     setEditingUser(null);
-    return;
-  }
-
-  onUpdateUser(editingUser.id, updates);
-  setEditingUser(null);
-};
+  };
 
   const handleAvatarUpdate = (seed: string) => {
     if (!editingUser) return;
@@ -251,9 +251,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     >
                       <img
                         alt={seed}
-                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=${
-                          ["b6e3f4", "c0aede", "ffdfbf"][Math.floor(Math.random() * 3)]
-                        }`}
+                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=${["b6e3f4", "c0aede", "ffdfbf"][Math.floor(Math.random() * 3)]
+                          }`}
                       />
                     </button>
                   ))}
@@ -521,7 +520,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                       RoleIcon = Briefcase;
                       roleName = "Manager";
                     } else if (user.role === Role.RESERVE) {
-                      roleBadge = "bg-slate-100 text-slate-600 border border-slate-200";
+                      roleBadge = "bg-sky-100 text-sky-700 border border-sky-200";
                       RoleIcon = UserCog;
                       roleName = "Riserva";
                     }
@@ -536,9 +535,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                           <img
                             src={user.avatar}
                             alt={user.name}
-                            className={`w-10 h-10 rounded-full border border-slate-200 ${
-                              user.role === Role.RESERVE ? "grayscale opacity-70" : ""
-                            }`}
+                            className={`w-10 h-10 rounded-full border border-slate-200 ${user.role === Role.RESERVE ? "grayscale opacity-70" : ""
+                              }`}
                           />
                           <div>
                             <h4 className="font-bold text-slate-800 flex items-center gap-2">
