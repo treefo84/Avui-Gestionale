@@ -1,8 +1,9 @@
 import React from "react";
 import { format, isSameDay, isWeekend } from "date-fns";
 import { AvailabilityStatus, Assignment, CalendarEvent, DayNote, GeneralEvent, MaintenanceRecord, User, Boat, Activity } from "../types";
+import { WeekViewGrid } from "./WeekViewGrid";
 
-type Props = {
+export type CalendarGridProps = {
   daysToRender: Date[];
   calendarView: "month" | "week";
   startDayPadding: number;
@@ -52,7 +53,11 @@ export function CalendarGrid({
   onDayLeave,
   onMouseMove,
   DayCell,
-}: Props) {
+}: CalendarGridProps) {
+  if (calendarView === "week") {
+    return <WeekViewGrid {...arguments[0]} />;
+  }
+
   return (
     <div className="grid grid-cols-7 gap-px bg-slate-200 rounded-2xl overflow-hidden shadow-sm border border-slate-200">
       {["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"].map((day) => (

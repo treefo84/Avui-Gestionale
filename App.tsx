@@ -266,6 +266,8 @@ const App: React.FC = () => {
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${sessionUser.email ?? sessionUser.id}`,
       mustChangePassword: false,
       googleCalendarConnected: false,
+      username: sessionUser.email ? sessionUser.email.split("@")[0] : "utente",
+      password: "",
     };
 
     if (!dbUser) return fallback;
@@ -277,14 +279,7 @@ const App: React.FC = () => {
       role: normalizeRole(dbUser.role ?? fallback.role),
       isAdmin: !!dbUser.is_admin,
       avatar: dbUser.avatar_url ?? fallback.avatar,
-      mustChangePassword: false,
-      googleCalendarConnected: false,
-      username: (dbUser.email ? dbUser.email.split("@")[0] : fallback.name) as any,
-      password: "" as any,
-      phoneNumber: (dbUser as any).phone_number ?? "",
       birthDate: (dbUser as any).birth_date ? String((dbUser as any).birth_date).slice(0, 10) : "",
-      googleCalendarConnected: !!(dbUser as any).google_calendar_connected,
-
     } as any;
   }, [dbUser, sessionUser?.id, sessionUser?.email]);
 
@@ -786,7 +781,7 @@ const App: React.FC = () => {
       // CALENDAR EVENTS
       const { data: eventsData, error: evErr } = await supabase
         .from("calendar_events")
-        .select("*")
+        .select("*, calendar_event_participants(user_id)")
         .order("start_date", { ascending: true });
 
       if (!cancelled) {
@@ -802,6 +797,11 @@ const App: React.FC = () => {
             activityId: r.activity_id ?? null,
             createdBy: r.created_by ?? null,
             createdAt: r.created_at ?? null,
+            startTime: r.start_time ?? null,
+            endTime: r.end_time ?? null,
+            recurrenceRule: r.recurrence_rule ?? null,
+            recurrenceEndDate: r.recurrence_end_date ?? null,
+            participants: r.calendar_event_participants?.map((p: any) => p.user_id) || [],
           }));
           setCalendarEvents(mapped);
           if (mapped.length) console.log("[A3][LOAD sample mapped]", mapped[0]);
@@ -1409,7 +1409,7 @@ const App: React.FC = () => {
   ) => {
     if (!currentUser) return;
 
-    const act = activitiesById.get(ev.activityId);
+    const act = activitiesById.get(activityId);
     const safeDate = String(date).slice(0, 10);
 
     // 1️⃣ creo evento
@@ -1481,7 +1481,64 @@ const App: React.FC = () => {
     await loadNotificationsFromDb();
   };
 
+  const handleCreateCalendarEvent = async (eventData: Partial<CalendarEvent>) => {
+    if (!currentUser) return;
 
+    // Default the date to today if not provided
+    const safeDate = String(eventData.startDate || new Date().toISOString()).slice(0, 10);
+    const endDate = eventData.endDate ? String(eventData.endDate).slice(0, 10) : safeDate;
+
+    const { data: createdEvent, error: evErr } = await supabase
+      .from("calendar_events")
+      .insert({
+        title: eventData.title || "Nuovo Evento",
+        start_date: safeDate,
+        end_date: endDate,
+        start_time: eventData.startTime || null,
+        end_time: eventData.endTime || null,
+        recurrence_rule: eventData.recurrenceRule || null,
+        recurrence_end_date: eventData.recurrenceEndDate || null,
+        created_by: currentUser.id,
+      })
+      .select("*")
+      .single();
+
+    if (evErr || !createdEvent) {
+      console.error("[ADD CALENDAR EVENT] Error:", evErr);
+      setNotificationToast({ message: "Errore creazione evento calendario", type: "error" });
+      return;
+    }
+
+    if (eventData.participants && eventData.participants.length > 0) {
+      const parts = eventData.participants.map(uid => ({
+        event_id: createdEvent.id,
+        user_id: uid
+      }));
+      const { error: pErr } = await supabase.from("calendar_event_participants").insert(parts);
+      if (pErr) console.error("[ADD CALENDAR EVENT PARTICIPANTS] Error:", pErr);
+    }
+
+    setNotificationToast({ message: "Evento aggiunto al calendario!", type: "success" });
+
+    const mapped: CalendarEvent = {
+      id: createdEvent.id,
+      boatId: createdEvent.boat_id,
+      title: createdEvent.title,
+      startDate: String(createdEvent.start_date).slice(0, 10),
+      endDate: String(createdEvent.end_date ?? createdEvent.start_date).slice(0, 10),
+      type: createdEvent.type ?? null,
+      activityId: createdEvent.activity_id ?? null,
+      createdBy: createdEvent.created_by ?? null,
+      createdAt: createdEvent.created_at ?? null,
+      startTime: createdEvent.start_time ?? null,
+      endTime: createdEvent.end_time ?? null,
+      recurrenceRule: createdEvent.recurrence_rule ?? null,
+      recurrenceEndDate: createdEvent.recurrence_end_date ?? null,
+      participants: eventData.participants || [],
+    };
+
+    setCalendarEvents(prev => [...prev, mapped]);
+  };
 
   const loadUsersFromDb = async () => {
     const { data, error } = await supabase
@@ -1496,7 +1553,6 @@ const App: React.FC = () => {
     }
 
     console.log("[LOAD users][RAW roles]", (data ?? []).map((r: any) => ({ auth_id: r.auth_id, role: r.role })));
-
     const mapped: User[] = (data ?? []).map((r: any) => ({
       id: r.auth_id,
       name: r.name ?? (r.email ? String(r.email).split("@")[0] : "utente"),
@@ -1517,6 +1573,7 @@ const App: React.FC = () => {
     setUsers(mapped);
     console.log("[LOAD users] rows:", mapped.length, mapped.map(u => ({ id: u.id, role: u.role })));
   };
+
   const loadMaintenanceFromDb = async () => {
     const { data, error } = await supabase
       .from("maintenance_logs")
@@ -1551,7 +1608,7 @@ const App: React.FC = () => {
       boat_id: rec.boatId,
       date: rec.date,
       description: rec.description ?? "",
-      created_by: rec.createdBy ?? null,
+      created_by: (rec as any).createdBy ?? null,
 
       status: (String((rec as any).status ?? "PENDING").toUpperCase()),
       expiration_date: (rec as any).expirationDate || null,
@@ -2055,7 +2112,7 @@ const App: React.FC = () => {
   // 5) Manutenzioni indicizzate (expiring + performed)
 
 
-  // 6) Calendar events: indicizza OGNI giorno del range
+  // 6) Calendar events: indicizza OGNI giorno del range e le ricorrenze
   const calEventsByDate = useMemo(() => {
     const m = new Map<string, CalendarEvent[]>();
 
@@ -2064,16 +2121,56 @@ const App: React.FC = () => {
       const end = (e.endDate ?? e.startDate ?? "").slice(0, 10);
       if (!start) continue;
 
-      const days = eachDayOfInterval({
+      const baseDays = eachDayOfInterval({
         start: parseDate(start),
         end: parseDate(end),
       });
 
-      for (const d of days) {
+      // Aggiungi le date base (evento singolo o durata base)
+      for (const d of baseDays) {
         const ds = format(d, "yyyy-MM-dd");
         const arr = m.get(ds) ?? [];
-        arr.push(e);
-        m.set(ds, arr);
+        if (!arr.find(existing => existing.id === e.id)) {
+          arr.push(e);
+          m.set(ds, arr);
+        }
+      }
+
+      // Gestisci la ricorrenza
+      if (e.recurrenceRule && e.recurrenceRule !== 'NONE') {
+        const recEnd = e.recurrenceEndDate ? parseDate(e.recurrenceEndDate) : null;
+        // Per sicurezza espandiamo al massimo fino a +1 anno dal currentDate se non c'è fine
+        const limitDate = recEnd || addDays(new Date(), 365);
+
+        let currentDateCursor = parseDate(start);
+        const durationDays = differenceInCalendarDays(parseDate(end), parseDate(start));
+
+        while (true) {
+          if (e.recurrenceRule === 'DAILY') {
+            currentDateCursor = addDays(currentDateCursor, 1);
+          } else if (e.recurrenceRule === 'WEEKLY') {
+            currentDateCursor = addDays(currentDateCursor, 7);
+          } else {
+            break; // Regola sconosciuta, esci
+          }
+
+          if (currentDateCursor > limitDate) break;
+
+          // Genera i giorni di durata per questa occorrenza
+          const occurrenceDays = eachDayOfInterval({
+            start: currentDateCursor,
+            end: addDays(currentDateCursor, durationDays)
+          });
+
+          for (const d of occurrenceDays) {
+            const ds = format(d, "yyyy-MM-dd");
+            const arr = m.get(ds) ?? [];
+            if (!arr.find(existing => existing.id === e.id)) {
+              arr.push(e);
+              m.set(ds, arr);
+            }
+          }
+        }
       }
     }
 
@@ -2430,6 +2527,7 @@ const App: React.FC = () => {
         isProfileOpen={isProfileOpen}
         setIsProfileOpen={setIsProfileOpen}
         onUpdateProfile={handleUpdateProfile}
+        onCreateCalendarEvent={handleCreateCalendarEvent}
       />
 
 

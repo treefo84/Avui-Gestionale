@@ -157,6 +157,11 @@ export interface DbCalendarEventRow {
   type: string | null;
   created_by: string | null;
   created_at: string;
+  start_time: string | null;
+  end_time: string | null;
+  recurrence_rule: string | null;
+  recurrence_end_date: string | null;
+  calendar_event_participants?: { user_id: string }[];
 }
 
 // --- App: evento calendario normalizzato (camelCase) ---
@@ -169,6 +174,11 @@ export interface CalendarEvent {
   type?: string | null;
   createdBy?: string;
   createdAt?: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  recurrenceRule?: string | null;
+  recurrenceEndDate?: string | null;
+  participants?: string[]; // IDs dei partecipanti
 
   activityId?: string | null;
 

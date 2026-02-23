@@ -39,6 +39,8 @@ type Props = {
   onAddDayNote: (date: string, text: string) => Promise<void> | void;
   onDeleteDayNote: (id: string) => Promise<void> | void;
 
+  onCreateCalendarEvent?: (eventData: Partial<CalendarEvent>) => Promise<void> | void;
+
   // --- UserManagement ---
   isUserManagementOpen: boolean;
   setIsUserManagementOpen: (v: boolean) => void;
@@ -93,6 +95,7 @@ export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(prop
     onDeleteGeneralEvent,
     onAddDayNote,
     onDeleteDayNote,
+    onCreateCalendarEvent,
 
     isUserManagementOpen,
     setIsUserManagementOpen,
@@ -138,6 +141,7 @@ export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(prop
           onAddDayNote={onAddDayNote}
           onDeleteDayNote={onDeleteDayNote}
           calendarEvents={selectedCalendarEvents}
+          onCreateCalendarEvent={onCreateCalendarEvent}
         />
       )}
 
