@@ -25,6 +25,7 @@ export type CalendarGridProps = {
   isCommanderConfirmed: (a: Assignment) => boolean;
 
   onDayClick: (dateStr: string) => void;
+  onOpenBoatPage: (boatId: string) => void;
   onDayEnter: (dateStr: string) => void;
   onDayLeave: () => void;
   onMouseMove: (e: React.MouseEvent) => void;
@@ -49,6 +50,7 @@ export function CalendarGrid({
   getEffectiveAssignment,
   isCommanderConfirmed,
   onDayClick,
+  onOpenBoatPage,
   onDayEnter,
   onDayLeave,
   onMouseMove,
@@ -111,6 +113,7 @@ export function CalendarGrid({
             getEffectiveAssignment={getEffectiveAssignment}
             isCommanderConfirmed={isCommanderConfirmed}
             onClick={() => onDayClick(dateStr)}
+            onOpenBoatPage={onOpenBoatPage}
             onMouseEnter={() => onDayEnter(dateStr)}
             onMouseLeave={onDayLeave}
             onMouseMove={onMouseMove}

@@ -4,6 +4,7 @@ import { DayModal } from "./DayModal";
 import { ProfilePage } from "./ProfilePage";
 import { UserManagementModal } from "./UserManagementModal";
 import { FleetManagementPage } from "./FleetManagementPage";
+import { BoatPage } from "./BoatPage";
 
 type Props = {
   // --- DayModal ---
@@ -72,6 +73,11 @@ type Props = {
   isProfileOpen: boolean;
   setIsProfileOpen: (v: boolean) => void;
   onUpdateProfile: (field: keyof User, value: any) => Promise<void> | void;
+
+  // --- Boat Page ---
+  selectedBoatIdForPage: string | null;
+  setSelectedBoatIdForPage: (id: string | null) => void;
+  onOpenBoatPage: (id: string) => void;
 };
 
 export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(props) {
@@ -115,6 +121,9 @@ export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(prop
     isProfileOpen,
     setIsProfileOpen,
     onUpdateProfile,
+    selectedBoatIdForPage,
+    setSelectedBoatIdForPage,
+    onOpenBoatPage
   } = props;
 
   return (
@@ -165,6 +174,7 @@ export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(prop
         onUpdateBoats={onUpdateBoats}
         onUpdateActivities={onUpdateActivities}
         onUpdateMaintenance={onUpdateMaintenance}
+        onOpenBoatPage={onOpenBoatPage}
       />
 
       {isProfileOpen && currentUser && (
@@ -178,6 +188,20 @@ export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(prop
           onUpdateUser={onUpdateProfile as any}
         />
       )}
+
+      {selectedBoatIdForPage && currentUser && (() => {
+        const boat = boats.find(b => b.id === selectedBoatIdForPage);
+        if (!boat) return null;
+        return (
+          <BoatPage
+            boat={boat}
+            records={maintenanceRecords}
+            currentUser={currentUser}
+            onClose={() => setSelectedBoatIdForPage(null)}
+            onUpdateRecords={onUpdateMaintenance as any}
+          />
+        );
+      })()}
     </>
   );
 });

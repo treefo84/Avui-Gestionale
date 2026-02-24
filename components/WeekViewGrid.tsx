@@ -1,7 +1,15 @@
 import React, { useMemo, useRef, useEffect } from "react";
 import { format, isSameDay, isWeekend, parse } from "date-fns";
 import { AvailabilityStatus, Assignment, CalendarEvent, DayNote, GeneralEvent, MaintenanceRecord, User, Boat, Activity } from "../types";
-import { parseDate } from "../utils/dateUtils";
+
+const parseDate = (dateString?: string | null) => {
+    if (!dateString) return new Date();
+    const parts = String(dateString).split('-');
+    if (parts.length === 3) {
+        return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2].substring(0, 2)));
+    }
+    return new Date(dateString);
+};
 
 type Props = {
     daysToRender: Date[];
@@ -213,8 +221,8 @@ export function WeekViewGrid(props: Props) {
                                                 <div
                                                     key={evt.id}
                                                     className={`absolute rounded-md shadow flex flex-col overflow-hidden text-[10px] p-1 border hover:z-20 transition-all ${evt.isCal
-                                                            ? 'bg-indigo-100 border-indigo-300 text-indigo-800'
-                                                            : 'bg-purple-100 border-purple-300 text-purple-800'
+                                                        ? 'bg-indigo-100 border-indigo-300 text-indigo-800'
+                                                        : 'bg-purple-100 border-purple-300 text-purple-800'
                                                         }`}
                                                     style={{ top: `${top}px`, height: `${height}px`, left, width }}
                                                     onClick={(e) => { e.stopPropagation(); onDayClick(dateStr); }}

@@ -15,7 +15,6 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
-import { MaintenanceModal } from "./MaintenanceModal";
 
 interface FleetManagementPageProps {
   isOpen: boolean;
@@ -27,7 +26,7 @@ interface FleetManagementPageProps {
 
   onUpdateBoats: (boats: Boat[]) => void;
   onUpdateActivities: (activities: Activity[]) => void;
-
+  onOpenBoatPage: (id: string) => void;
 }
 
 type DbBoatRow = {
@@ -56,8 +55,7 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
   maintenanceRecords,
   onUpdateBoats,
   onUpdateActivities,
-  onUpdateMaintenance,
- 
+  onOpenBoatPage,
 }) => {
   const [activeTab, setActiveTab] = useState<"boats" | "activities">("boats");
   const [editingBoat, setEditingBoat] = useState<Boat | null>(null);
@@ -76,7 +74,6 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
   const [editActDuration, setEditActDuration] = useState(2);
   const [editActTypes, setEditActTypes] = useState<BoatType[]>([]);
   const [editActIsGeneral, setEditActIsGeneral] = useState(false);
-  const [maintenanceBoat, setMaintenanceBoat] = useState<Boat | null>(null);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -101,7 +98,6 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
     if (!isOpen) {
       setEditingBoat(null);
       setEditingActivity(null);
-      setMaintenanceBoat(null);
       setErrorMsg(null);
       setSaving(false);
     }
@@ -277,11 +273,6 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleOpenMaintenance = (e: React.MouseEvent, boat: Boat) => {
-    e.stopPropagation();
-    setMaintenanceBoat(boat);
   };
 
   /* --- ACTIVITY HANDLERS (DB) --- */
@@ -467,21 +458,19 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
           <div className="flex border-b border-slate-200">
             <button
               onClick={() => setActiveTab("boats")}
-              className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors ${
-                activeTab === "boats"
-                  ? "border-b-2 border-blue-600 text-blue-600 bg-blue-50/50"
-                  : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
-              }`}
+              className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors ${activeTab === "boats"
+                ? "border-b-2 border-blue-600 text-blue-600 bg-blue-50/50"
+                : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                }`}
             >
               Le Barche
             </button>
             <button
               onClick={() => setActiveTab("activities")}
-              className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors ${
-                activeTab === "activities"
-                  ? "border-b-2 border-blue-600 text-blue-600 bg-blue-50/50"
-                  : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
-              }`}
+              className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors ${activeTab === "activities"
+                ? "border-b-2 border-blue-600 text-blue-600 bg-blue-50/50"
+                : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                }`}
             >
               Le Missioni
             </button>
@@ -669,11 +658,14 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
                         </div>
 
                         <button
-                          onClick={(e) => handleOpenMaintenance(e, boat)}
-                          className="p-2 mr-1 text-slate-300 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors z-10"
-                          title="Diario di Bordo"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenBoatPage(boat.id);
+                          }}
+                          className="p-2 mr-1 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors z-10"
+                          title="Apri Pagina Barca"
                         >
-                          <Wrench size={18} />
+                          <Ship size={18} />
                         </button>
 
                         <button
@@ -747,22 +739,20 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
                             <button
                               type="button"
                               onClick={() => toggleEditActType(BoatType.SAILING)}
-                              className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${
-                                editActTypes.includes(BoatType.SAILING)
-                                  ? "bg-indigo-100 text-indigo-700 border-indigo-200"
-                                  : "bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100"
-                              }`}
+                              className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${editActTypes.includes(BoatType.SAILING)
+                                ? "bg-indigo-100 text-indigo-700 border-indigo-200"
+                                : "bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100"
+                                }`}
                             >
                               Vela
                             </button>
                             <button
                               type="button"
                               onClick={() => toggleEditActType(BoatType.POWER)}
-                              className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${
-                                editActTypes.includes(BoatType.POWER)
-                                  ? "bg-indigo-100 text-indigo-700 border-indigo-200"
-                                  : "bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100"
-                              }`}
+                              className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${editActTypes.includes(BoatType.POWER)
+                                ? "bg-indigo-100 text-indigo-700 border-indigo-200"
+                                : "bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100"
+                                }`}
                             >
                               Motore
                             </button>
@@ -832,22 +822,20 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
                             <button
                               type="button"
                               onClick={() => toggleNewActType(BoatType.SAILING)}
-                              className={`px-2 py-1.5 rounded-lg text-xs font-bold border ${
-                                newActTypes.includes(BoatType.SAILING)
-                                  ? "bg-blue-100 text-blue-700 border-blue-200"
-                                  : "bg-slate-50 text-slate-400 border-slate-200"
-                              }`}
+                              className={`px-2 py-1.5 rounded-lg text-xs font-bold border ${newActTypes.includes(BoatType.SAILING)
+                                ? "bg-blue-100 text-blue-700 border-blue-200"
+                                : "bg-slate-50 text-slate-400 border-slate-200"
+                                }`}
                             >
                               Vela
                             </button>
                             <button
                               type="button"
                               onClick={() => toggleNewActType(BoatType.POWER)}
-                              className={`px-2 py-1.5 rounded-lg text-xs font-bold border ${
-                                newActTypes.includes(BoatType.POWER)
-                                  ? "bg-blue-100 text-blue-700 border-blue-200"
-                                  : "bg-slate-50 text-slate-400 border-slate-200"
-                              }`}
+                              className={`px-2 py-1.5 rounded-lg text-xs font-bold border ${newActTypes.includes(BoatType.POWER)
+                                ? "bg-blue-100 text-blue-700 border-blue-200"
+                                : "bg-slate-50 text-slate-400 border-slate-200"
+                                }`}
                             >
                               Motore
                             </button>
@@ -916,15 +904,6 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
           )}
         </div>
 
-        {maintenanceBoat && (
-            <MaintenanceModal
-  isOpen={!!maintenanceBoat}
-  onClose={() => setMaintenanceBoat(null)}
-  boat={maintenanceBoat}
-  records={maintenanceRecords}
-  onUpdateRecords={onUpdateMaintenance}
-/>
-        )}
       </div>
     </div>
   );

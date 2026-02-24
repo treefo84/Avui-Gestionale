@@ -1,0 +1,48 @@
+﻿App.tsx(84,25): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+App.tsx(309,34): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+App.tsx(317,29): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+App.tsx(525,34): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(predicate: (value: Date, index: number, array: Date[]) => value is Date, thisArg?: any): Date[]', gave the following error.
+    Argument of type '(date: string | number | Date, options?: IsWeekendOptions) => boolean' is not assignable to parameter of type '(value: Date, index: number, array: Date[]) => value is Date'.
+      Types of parameters 'options' and 'index' are incompatible.
+        Type 'number' has no properties in common with type 'ContextOptions<Date>'.
+  Overload 2 of 2, '(predicate: (value: Date, index: number, array: Date[]) => unknown, thisArg?: any): Date[]', gave the following error.
+    Argument of type '(date: string | number | Date, options?: IsWeekendOptions) => boolean' is not assignable to parameter of type '(value: Date, index: number, array: Date[]) => unknown'.
+      Types of parameters 'options' and 'index' are incompatible.
+        Type 'number' has no properties in common with type 'ContextOptions<Date>'.
+App.tsx(551,47): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(predicate: (value: Date, index: number, array: Date[]) => value is Date, thisArg?: any): Date[]', gave the following error.
+    Argument of type '(date: string | number | Date, options?: IsWeekendOptions) => boolean' is not assignable to parameter of type '(value: Date, index: number, array: Date[]) => value is Date'.
+      Types of parameters 'options' and 'index' are incompatible.
+        Type 'number' has no properties in common with type 'ContextOptions<Date>'.
+  Overload 2 of 2, '(predicate: (value: Date, index: number, array: Date[]) => unknown, thisArg?: any): Date[]', gave the following error.
+    Argument of type '(date: string | number | Date, options?: IsWeekendOptions) => boolean' is not assignable to parameter of type '(value: Date, index: number, array: Date[]) => unknown'.
+      Types of parameters 'options' and 'index' are incompatible.
+        Type 'number' has no properties in common with type 'ContextOptions<Date>'.
+App.tsx(930,34): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+App.tsx(938,29): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+App.tsx(1858,36): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+App.tsx(1864,31): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+App.tsx(1908,36): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+App.tsx(1914,31): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+App.tsx(2485,39): error TS2304: Cannot find name 'setSelectedBoatIdForPage'.
+App.tsx(2532,32): error TS2304: Cannot find name 'selectedBoatIdForPage'.
+App.tsx(2533,35): error TS2304: Cannot find name 'setSelectedBoatIdForPage'.
+App.tsx(2534,33): error TS2304: Cannot find name 'setSelectedBoatIdForPage'.
+components/BoatPage.tsx(6,8): error TS2613: Module '"D:/Nextcloud/PC PIALT/Download/avui-gestionale_2/node_modules/date-fns/locale/it"' has no default export. Did you mean to use 'import { it } from "D:/Nextcloud/PC PIALT/Download/avui-gestionale_2/node_modules/date-fns/locale/it"' instead?
+components/MaintenanceModal.tsx(6,8): error TS2613: Module '"D:/Nextcloud/PC PIALT/Download/avui-gestionale_2/node_modules/date-fns/locale/it"' has no default export. Did you mean to use 'import { it } from "D:/Nextcloud/PC PIALT/Download/avui-gestionale_2/node_modules/date-fns/locale/it"' instead?
+components/ProfilePage.tsx(6,8): error TS2613: Module '"D:/Nextcloud/PC PIALT/Download/avui-gestionale_2/node_modules/date-fns/locale/it"' has no default export. Did you mean to use 'import { it } from "D:/Nextcloud/PC PIALT/Download/avui-gestionale_2/node_modules/date-fns/locale/it"' instead?
+supabase/functions/admin-users/index.ts(5,30): error TS2307: Cannot find module 'jsr:@supabase/supabase-js@2' or its corresponding type declarations.
+supabase/functions/admin-users/index.ts(41,1): error TS2304: Cannot find name 'Deno'.
+supabase/functions/admin-users/index.ts(45,26): error TS2304: Cannot find name 'Deno'.
+supabase/functions/admin-users/index.ts(46,22): error TS2304: Cannot find name 'Deno'.
+supabase/functions/admin-users/index.ts(47,30): error TS2304: Cannot find name 'Deno'.
+supabase/functions/admin-users/index.ts(77,3): error TS2304: Cannot find name 'Deno'.
+supabase/functions/admin-users/index.ts(78,3): error TS2304: Cannot find name 'Deno'.
+supabase/functions/send-email/index.ts(1,23): error TS2307: Cannot find module 'https://deno.land/std@0.224.0/http/server.ts' or its corresponding type declarations.
+supabase/functions/send-email/index.ts(11,28): error TS2304: Cannot find name 'Deno'.
+supabase/functions/send-email/index.ts(12,24): error TS2304: Cannot find name 'Deno'.
+supabaseClient.ts(3,33): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+supabaseClient.ts(4,37): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+supabaseClient.ts(7,15): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+supabaseClient.ts(8,15): error TS2339: Property 'env' does not exist on type 'ImportMeta'.

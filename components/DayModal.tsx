@@ -24,6 +24,7 @@ interface DayModalProps {
     onDeleteGeneralEvent: (id: string) => void;
     onAddDayNote: (date: string, text: string) => void;
     onDeleteDayNote: (id: string) => void;
+    onOpenBoatPage: (id: string) => void;
     onCreateCalendarEvent?: (eventData: Partial<CalendarEvent>) => void;
     onCreateGeneralEvent: (
         date: string,
@@ -68,6 +69,7 @@ export const DayModal: React.FC<DayModalProps> = ({
     onDeleteGeneralEvent,
     onAddDayNote,
     onDeleteDayNote,
+    onOpenBoatPage,
     onCreateCalendarEvent
 }) => {
 
@@ -744,6 +746,7 @@ export const DayModal: React.FC<DayModalProps> = ({
                                         isInstructor={isCommandingOfficer}
                                         onUpdate={onUpdateAssignment}
                                         onDelete={onDeleteAssignment}
+                                        onOpenBoatPage={onOpenBoatPage}
                                         date={date}
                                     />
                                 );

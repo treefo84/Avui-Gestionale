@@ -9,10 +9,11 @@ import {
   Availability,
   AvailabilityStatus,
   Boat,
+  BoatType,
+  CalendarEvent,
   ConfirmationStatus,
   DayNote,
   GeneralEvent,
-  CalendarEvent,
   MaintenanceRecord,
   MaintenanceStatus,
   NotificationType,
@@ -20,6 +21,7 @@ import {
   User,
   UserNotification,
 } from "./types";
+import { sendNotificationEmail } from "./services/emailService";
 
 import { DayModal } from "./components/DayModal";
 import { DayHoverModal } from "./components/DayHoverModal";
@@ -174,6 +176,17 @@ const normalizeRole = (input: any): Role => {
   return Role.HELPER;
 };
 
+const syncGoogleCalendarEvent = async (payload: { targetUserId: string, title: string, description: string, startTime: string, endTime: string, action: 'create' | 'update' | 'delete', eventId?: string }) => {
+  try {
+    const { error } = await supabase.functions.invoke('sync-calendar', {
+      body: payload
+    });
+    if (error) console.error("[Google Calendar Sync Error]:", error);
+  } catch (err) {
+    console.error("[Google Calendar Sync Exception]:", err);
+  }
+};
+
 const App: React.FC = () => {
   // --- AUTH ---
   const { session, isLoggedIn, loading } = useAuth();
@@ -197,6 +210,7 @@ const App: React.FC = () => {
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const [isFleetManagementOpen, setIsFleetManagementOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [selectedBoatIdForPage, setSelectedBoatIdForPage] = useState<string | null>(null);
 
   // Login form state
   const [email, setEmail] = useState("");
@@ -224,7 +238,21 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // niente
+      if (session?.user && (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED')) {
+        // Se c'è un provider_token (ovvero l'utente ha fatto login/link con Google in questo esatto istante)
+        if (session.provider_token) {
+          try {
+            await supabase.from('users').update({
+              google_provider_token: session.provider_token,
+              google_refresh_token: session.provider_refresh_token,
+              google_calendar_connected: true
+            }).eq('auth_id', session.user.id);
+            console.log("Tokens Google salvati nel database.");
+          } catch (err) {
+            console.error("Errore nel salvataggio dei token Google:", err);
+          }
+        }
+      }
     });
 
     // Se trovi errori di refresh token, ti conviene forzare signOut (vedi sotto)
@@ -522,7 +550,7 @@ const App: React.FC = () => {
     const start = new Date(year, month, 1);
     const end = new Date(year, month + 1, 0);
     const days = eachDayOfInterval({ start, end });
-    const weekends = days.filter(isWeekend);
+    const weekends = days.filter(d => isWeekend(d));
 
     // basta almeno 1 entry nel mese prossimo (come facevi già tu)
     return weekends.some((day) => {
@@ -548,7 +576,7 @@ const App: React.FC = () => {
 
     // se vuoi SOLO weekend:
     const daysInNextMonth = eachDayOfInterval({ start: startNextMonth, end: endNextMonth });
-    const targetDays = daysInNextMonth.filter(isWeekend);
+    const targetDays = daysInNextMonth.filter(d => isWeekend(d));
 
     // almeno una disponibilità nel mese successivo (solo weekend)
     const hasEntries = targetDays.some((day) => {
@@ -1172,6 +1200,19 @@ const App: React.FC = () => {
 
         if (nErr) console.error("[A13][UPSERT notifications] error:", nErr);
         else {
+          Promise.allSettled(
+            notifsToCreate.map(async (notif) => {
+              const u = users.find(x => x.id === notif.user_id);
+              if (u?.email) {
+                await sendNotificationEmail({
+                  to: u.email,
+                  subject: `Nuova Avui Notifica: ${notif.message}`,
+                  html: `<p>Ciao ${u.name},</p><p>${notif.message}</p><p>Accedi all'app per maggiori dettagli.</p>`
+                });
+              }
+            })
+          ).catch(e => console.error("Email send error", e));
+
           // refresh UI locale solo se la notifica è per ME
           await loadNotificationsFromDb();
         }
@@ -1270,6 +1311,31 @@ const App: React.FC = () => {
     await loadGeneralEventsFromDb();
     await loadNotificationsFromDb();
 
+    // Sincronizzazione Google Calendar
+    if (isAccepted && currentUser?.googleCalendarConnected) {
+      const gEvent = generalEvents.find((e) => e.id === eventId);
+      if (gEvent) {
+        const activity = activities.find((a) => a.id === gEvent.activityId);
+
+        let startStr = gEvent.date;
+        let endStr = gEvent.date;
+
+        if (gEvent.startTime && gEvent.endTime) {
+          startStr = `${gEvent.date}T${gEvent.startTime}:00`;
+          endStr = `${gEvent.date}T${gEvent.endTime}:00`;
+        }
+
+        syncGoogleCalendarEvent({
+          targetUserId: currentUser.id,
+          title: `Evento: ${activity?.name || "Avui"}`,
+          description: gEvent.notes || "Evento in Base Nautica",
+          startTime: startStr,
+          endTime: endStr,
+          action: 'create'
+        });
+      }
+    }
+
     setNotificationToast({
       message: isAccepted ? "Partecipazione confermata!" : "Invito declinato.",
       type: "success",
@@ -1329,6 +1395,24 @@ const App: React.FC = () => {
     // 3) DB + UI: segno la notifica come letta
     await supabase.from("notifications").update({ read: true }).eq("id", notif.id);
     setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n)));
+
+    // Sincronizzazione Google Calendar
+    if (accepted && currentUser?.googleCalendarConnected) {
+      const assignment = assignments.find((a) => a.id === assignmentId);
+      if (assignment) {
+        const boat = boats.find((b) => b.id === assignment.boatId);
+        const activity = activities.find((a) => a.id === assignment.activityId);
+
+        syncGoogleCalendarEvent({
+          targetUserId: currentUser.id,
+          title: `Incarico: ${activity?.name || "Avui"}`,
+          description: `Barca: ${boat?.name || "Sconosciuta"} - ${assignment.notes || ''}`,
+          startTime: assignment.date, // All-day event se usiamo solo YYYY-MM-DD
+          endTime: assignment.date,
+          action: 'create'
+        });
+      }
+    }
 
     setNotificationToast({
       message: accepted ? "Incarico confermato ✅" : "Incarico rifiutato ❌",
@@ -1470,6 +1554,21 @@ const App: React.FC = () => {
       .insert(notifPayload);
 
     console.log("[A8][INSERT notifications]", notifErr);
+
+    if (!notifErr) {
+      Promise.allSettled(
+        notifPayload.map(async (notif) => {
+          const u = users.find(x => x.id === notif.user_id);
+          if (u?.email) {
+            await sendNotificationEmail({
+              to: u.email,
+              subject: `Nuovo Invito: ${act?.name ?? "Evento"}`,
+              html: `<p>Ciao ${u.name},</p><p>${notif.message}</p><p>Accedi all'app per confermare o rifiutare la tua presenza.</p>`
+            });
+          }
+        })
+      ).catch(e => console.error("Email send error", e));
+    }
 
     setNotificationToast({
       message: `Evento "${act?.name ?? "Evento"}" creato!`,
@@ -1884,8 +1983,25 @@ const App: React.FC = () => {
 
       console.log("[ADD USER] ok:", json);
 
+      // Invia email di benvenuto con credenziali
+      sendNotificationEmail({
+        to: safeEmail,
+        subject: "Benvenuto su Avui Gestionale - Credenziali di Accesso",
+        html: `
+          <div style="font-family: sans-serif; color: #333;">
+            <h2>Benvenuto a Bordo, ${payload.name}! ⛵</h2>
+            <p>Il tuo account su Avui Gestionale è stato creato con successo.</p>
+            <p>Di seguito trovi le tue credenziali di accesso provvisorie. Ti ricordiamo che la prima volta che effettuerai l'accesso ti verrà richiesto di cambiare la password per motivi di sicurezza.</p>
+            <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 0 0 10px 0;"><strong>Username / Email:</strong> ${safeEmail}</p>
+              <p style="margin: 0;"><strong>Password Temporanea:</strong> <code>${safePwd}</code></p>
+            </div>
+            <p>Accedi subito all'app per gestire la tua disponibilità e vedere le tue convocazioni!</p>
+          </div>
+        `
+      }).catch((e) => console.error("[ADD USER] Errore invio email di benvenuto", e));
 
-      setNotificationToast({ message: "Utente creato ✅", type: "success" });
+      setNotificationToast({ message: "Utente creato ✅ e email inviata!", type: "success" });
     } catch (e) {
       console.error("[ADD USER] unexpected:", e);
       setNotificationToast({ message: "Errore inatteso creazione utente.", type: "error" });
@@ -2482,6 +2598,7 @@ const App: React.FC = () => {
             setSelectedDate(dateStr);
             setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
           }}
+          onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
           onDayEnter={(dateStr) => setHoveredDate(dateStr)}
           onDayLeave={() => setHoveredDate(null)}
           onMouseMove={handleMouseMove}
@@ -2528,8 +2645,10 @@ const App: React.FC = () => {
         setIsProfileOpen={setIsProfileOpen}
         onUpdateProfile={handleUpdateProfile}
         onCreateCalendarEvent={handleCreateCalendarEvent}
+        selectedBoatIdForPage={selectedBoatIdForPage}
+        setSelectedBoatIdForPage={setSelectedBoatIdForPage}
+        onOpenBoatPage={(id) => setSelectedBoatIdForPage(id)}
       />
-
 
     </div>
   );
@@ -2558,6 +2677,7 @@ type DayCellProps = {
   isCommanderConfirmed: (a: Assignment) => boolean;
 
   onClick: () => void;
+  onOpenBoatPage: (boatId: string) => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
   onMouseMove: (e: React.MouseEvent) => void;
@@ -2581,6 +2701,7 @@ const DayCell = React.memo(function DayCell(props: DayCellProps) {
     getEffectiveAssignment,
     isCommanderConfirmed,
     onClick,
+    onOpenBoatPage,
     onMouseEnter,
     onMouseLeave,
     onMouseMove,
@@ -2677,7 +2798,13 @@ const DayCell = React.memo(function DayCell(props: DayCellProps) {
               className="h-5 text-[10px] px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 border bg-blue-100 text-blue-700 border-blue-200"
             >
               <CheckCircle size={10} className="mr-1 shrink-0" />
-              <span className="truncate">
+              <span
+                className="truncate cursor-pointer hover:underline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenBoatPage(boat!.id);
+                }}
+              >
                 {boat?.name}: {record.description}
               </span>
             </div>
@@ -2701,8 +2828,12 @@ const DayCell = React.memo(function DayCell(props: DayCellProps) {
           return (
             <div
               key={`${boat.id}-${assignment.id}`}
-              className={`h-6 text-[10px] px-2 flex items-center overflow-hidden whitespace-nowrap ${barColor} rounded-md mx-1`}
+              className={`h-6 text-[10px] px-2 flex items-center overflow-hidden whitespace-nowrap ${barColor} rounded-md mx-1 cursor-pointer transition-opacity hover:opacity-90`}
               title={label}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenBoatPage(boat.id);
+              }}
             >
               <span className="truncate">{label}</span>
             </div>
