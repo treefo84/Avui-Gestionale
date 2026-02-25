@@ -5,6 +5,7 @@ import { ProfilePage } from "./ProfilePage";
 import { UserManagementModal } from "./UserManagementModal";
 import { FleetManagementPage } from "./FleetManagementPage";
 import { BoatPage } from "./BoatPage";
+import { MaintenanceHubPage } from "./MaintenanceHubPage";
 
 type Props = {
   // --- DayModal ---
@@ -64,6 +65,8 @@ type Props = {
   // --- FleetManagement ---
   isFleetManagementOpen: boolean;
   setIsFleetManagementOpen: (v: boolean) => void;
+  isMaintenanceHubOpen: boolean;
+  setIsMaintenanceHubOpen: (v: boolean) => void;
   maintenanceRecords: MaintenanceRecord[];
   onUpdateBoats: (b: Boat[]) => void;
   onUpdateActivities: (a: Activity[]) => void;
@@ -113,6 +116,8 @@ export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(prop
 
     isFleetManagementOpen,
     setIsFleetManagementOpen,
+    isMaintenanceHubOpen,
+    setIsMaintenanceHubOpen,
     maintenanceRecords,
     onUpdateBoats,
     onUpdateActivities,
@@ -202,6 +207,16 @@ export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(prop
           />
         );
       })()}
+
+      <MaintenanceHubPage
+        isOpen={isMaintenanceHubOpen}
+        onClose={() => setIsMaintenanceHubOpen(false)}
+        boats={boats}
+        records={maintenanceRecords}
+        currentUser={currentUser}
+        onUpdateRecords={onUpdateMaintenance}
+        onDeleteRecords={() => { }} // Not used globally right now, handled by update toggle and delete directly
+      />
     </>
   );
 });

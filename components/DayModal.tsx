@@ -764,8 +764,30 @@ export const DayModal: React.FC<DayModalProps> = ({
                                 if (status === AvailabilityStatus.AVAILABLE) statusColor = "bg-green-100 text-green-700 border-green-200";
                                 if (status === AvailabilityStatus.UNAVAILABLE) statusColor = "bg-red-50 text-red-300 decoration-line-through";
 
+                                const canEdit = currentUser.isAdmin;
+
+                                const handleToggleStatus = () => {
+                                    if (!canEdit) return;
+
+                                    let newStatus = AvailabilityStatus.UNKNOWN;
+                                    if (status === AvailabilityStatus.UNKNOWN) newStatus = AvailabilityStatus.AVAILABLE;
+                                    else if (status === AvailabilityStatus.AVAILABLE) newStatus = AvailabilityStatus.UNAVAILABLE;
+                                    else if (status === AvailabilityStatus.UNAVAILABLE) newStatus = AvailabilityStatus.UNKNOWN;
+
+                                    onUpdateAvailability({
+                                        userId: u.id,
+                                        date: date,
+                                        status: newStatus
+                                    });
+                                };
+
                                 return (
-                                    <div key={u.id} className={`flex items-center gap-2 p-2 rounded-lg border ${statusColor} border-transparent`}>
+                                    <div
+                                        key={u.id}
+                                        onClick={handleToggleStatus}
+                                        className={`flex items-center gap-2 p-2 rounded-lg border ${statusColor} border-transparent ${canEdit ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                                        title={canEdit ? "Clicca per cambiare la disponibilità (Admin)" : ""}
+                                    >
                                         <div className="relative">
                                             <img src={u.avatar} className="w-6 h-6 rounded-full" />
                                             <div className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${status === AvailabilityStatus.AVAILABLE ? 'bg-green-500' : (status === AvailabilityStatus.UNAVAILABLE ? 'bg-red-500' : 'bg-slate-300')}`}></div>

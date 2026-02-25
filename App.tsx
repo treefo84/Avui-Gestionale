@@ -33,8 +33,8 @@ import { Navbar } from "./components/Navbar";
 import { ModalsLayer } from "./components/ModalsLayer";
 import { CalendarHeader } from "./components/CalendarHeader";
 import { AppNavbar } from "./components/AppNavbar";
-
-
+import { NoticeBoard } from "./components/NoticeBoard";
+import { NextAssignmentsBox } from "./components/NextAssignmentsBox";
 
 
 
@@ -210,6 +210,7 @@ const App: React.FC = () => {
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const [isFleetManagementOpen, setIsFleetManagementOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isMaintenanceHubOpen, setIsMaintenanceHubOpen] = useState(false);
   const [selectedBoatIdForPage, setSelectedBoatIdForPage] = useState<string | null>(null);
 
   // Login form state
@@ -899,6 +900,7 @@ const App: React.FC = () => {
     setIsProfileOpen(false);
     setIsUserManagementOpen(false);
     setIsFleetManagementOpen(false);
+    setIsMaintenanceHubOpen(false);
     setIsNotificationOpen(false);
     setShowAvailabilityAlert(false);
 
@@ -908,6 +910,13 @@ const App: React.FC = () => {
 
   const handleUpdateAvailability = async (newAvailability: Availability) => {
     setAvailabilities((prev) => {
+      // Se lo stato è UNKNOWN, lo rimuoviamo dallo stato locale
+      if (newAvailability.status === AvailabilityStatus.UNKNOWN) {
+        return prev.filter(
+          (a) => !(a.userId === newAvailability.userId && a.date === newAvailability.date)
+        );
+      }
+
       const idx = prev.findIndex(
         (a) => a.userId === newAvailability.userId && a.date === newAvailability.date
       );
@@ -918,6 +927,19 @@ const App: React.FC = () => {
       }
       return [...prev, newAvailability];
     });
+
+    if (newAvailability.status === AvailabilityStatus.UNKNOWN) {
+      const { error } = await supabase
+        .from("availabilities")
+        .delete()
+        .match({ user_id: newAvailability.userId, date: newAvailability.date });
+
+      if (error) {
+        console.error("[DELETE availabilities] error:", error);
+        setNotificationToast({ message: "Errore reset disponibilità (DB).", type: "error" });
+      }
+      return;
+    }
 
     const payload = {
       user_id: newAvailability.userId,
@@ -2544,6 +2566,8 @@ const App: React.FC = () => {
         setIsUserManagementOpen={setIsUserManagementOpen}
         isFleetManagementOpen={isFleetManagementOpen}
         setIsFleetManagementOpen={setIsFleetManagementOpen}
+        isMaintenanceHubOpen={isMaintenanceHubOpen}
+        setIsMaintenanceHubOpen={setIsMaintenanceHubOpen}
         notificationPanelRef={notificationPanelRef}
         notifications={notifications}
         handleLogout={handleLogout}
@@ -2568,43 +2592,58 @@ const App: React.FC = () => {
       )}
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto p-6">
-        <CalendarHeader
-          currentDate={currentDate}
-          calendarView={calendarView}
-          onPrev={() => navigateCalendar("prev")}
-          onToday={() => setCurrentDate(new Date())}
-          onNext={() => navigateCalendar("next")}
-          onSetView={(v) => setCalendarView(v)}
-        />
+      <main className="max-w-[1400px] mx-auto p-6 flex flex-col xl:flex-row gap-6 items-start">
 
-        <CalendarGrid
-          daysToRender={daysToRender}
-          calendarView={calendarView}
-          startDayPadding={startDayPadding}
-          currentUser={currentUser}
-          boats={boats}
-          activitiesById={activitiesById}
-          boatsById={boatsById}
-          usersById={usersById}
-          calEventsByDate={calEventsByDate}
-          generalEventsByDate={generalEventsByDate}
-          maintenanceByDate={maintenanceByDate}
-          myAvailabilityByDate={myAvailabilityByDate}
-          notesByDate={notesByDate}
-          getEffectiveAssignment={getEffectiveAssignment}
-          isCommanderConfirmed={isCommanderConfirmed}
-          onDayClick={(dateStr) => {
-            setSelectedDate(dateStr);
-            setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
-          }}
-          onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
-          onDayEnter={(dateStr) => setHoveredDate(dateStr)}
-          onDayLeave={() => setHoveredDate(null)}
-          onMouseMove={handleMouseMove}
-          DayCell={DayCell}
-        />
+        {/* Calendar Section */}
+        <div className="flex-1 w-full xl:w-auto overflow-hidden">
+          <CalendarHeader
+            currentDate={currentDate}
+            calendarView={calendarView}
+            onPrev={() => navigateCalendar("prev")}
+            onToday={() => setCurrentDate(new Date())}
+            onNext={() => navigateCalendar("next")}
+            onSetView={(v) => setCalendarView(v)}
+          />
 
+          <CalendarGrid
+            daysToRender={daysToRender}
+            calendarView={calendarView}
+            startDayPadding={startDayPadding}
+            currentUser={currentUser}
+            boats={boats}
+            activitiesById={activitiesById}
+            boatsById={boatsById}
+            usersById={usersById}
+            calEventsByDate={calEventsByDate}
+            generalEventsByDate={generalEventsByDate}
+            maintenanceByDate={maintenanceByDate}
+            myAvailabilityByDate={myAvailabilityByDate}
+            notesByDate={notesByDate}
+            getEffectiveAssignment={getEffectiveAssignment}
+            isCommanderConfirmed={isCommanderConfirmed}
+            onDayClick={(dateStr) => {
+              setSelectedDate(dateStr);
+              setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
+            }}
+            onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
+            onDayEnter={(dateStr) => setHoveredDate(dateStr)}
+            onDayLeave={() => setHoveredDate(null)}
+            onMouseMove={handleMouseMove}
+            DayCell={DayCell}
+          />
+        </div>
+
+        {/* Notice Board Section (Sidebar on XL, Bottom on Mobile) */}
+        <aside className="w-full xl:w-[400px] shrink-0 flex flex-col gap-6">
+          <NextAssignmentsBox
+            currentUser={currentUser}
+            assignments={assignments}
+            generalEvents={generalEvents}
+            boats={boats}
+            activities={activities}
+          />
+          <NoticeBoard currentUser={currentUser} />
+        </aside>
 
       </main>
 
@@ -2637,6 +2676,8 @@ const App: React.FC = () => {
         onUpdateUser={handleUpdateUser}
         isFleetManagementOpen={isFleetManagementOpen}
         setIsFleetManagementOpen={setIsFleetManagementOpen}
+        isMaintenanceHubOpen={isMaintenanceHubOpen}
+        setIsMaintenanceHubOpen={setIsMaintenanceHubOpen}
         maintenanceRecords={maintenanceRecords}
         onUpdateBoats={setBoats}
         onUpdateActivities={setActivities}

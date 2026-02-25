@@ -7,6 +7,7 @@ import {
   LogOut,
   Ship,
   Users as UsersIcon,
+  Wrench,
 } from "lucide-react";
 import { NotificationType, User, UserNotification } from "../types";
 
@@ -26,6 +27,9 @@ type Props = {
 
   isFleetManagementOpen: boolean;
   setIsFleetManagementOpen: React.Dispatch<React.SetStateAction<boolean>>;
+
+  isMaintenanceHubOpen: boolean;
+  setIsMaintenanceHubOpen: React.Dispatch<React.SetStateAction<boolean>>;
 
   notificationPanelRef: React.RefObject<HTMLDivElement>;
 
@@ -50,6 +54,7 @@ export function AppNavbar({
 
   setIsUserManagementOpen,
   setIsFleetManagementOpen,
+  setIsMaintenanceHubOpen,
 
   notificationPanelRef,
 
@@ -182,10 +187,18 @@ export function AppNavbar({
 
               <button
                 onClick={() => setIsFleetManagementOpen(true)}
-                className="p-2 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-full transition-colors mr-2"
+                className="p-2 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-full transition-colors"
                 aria-label="Gestione Flotta"
               >
                 <Anchor size={22} />
+              </button>
+
+              <button
+                onClick={() => setIsMaintenanceHubOpen(true)}
+                className="p-2 text-slate-500 hover:text-orange-600 hover:bg-slate-100 rounded-full transition-colors mr-2 text-orange-500"
+                aria-label="Centro Manutenzioni"
+              >
+                <Wrench size={22} />
               </button>
             </>
           )}

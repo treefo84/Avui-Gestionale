@@ -96,6 +96,16 @@ export interface DayNote {
   createdAt: number;
 }
 
+export interface Announcement {
+  id: string;
+  authorId: string;
+  content: string;
+  createdAt: string;
+  // campi aggiunti in join dal database:
+  authorName?: string;
+  authorAvatar?: string;
+}
+
 export enum NotificationType {
   ASSIGNMENT_REQUEST = 'ASSIGNMENT_REQUEST',
   EVENT_INVITE = 'EVENT_INVITE',
