@@ -2621,62 +2621,67 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Main Content */}
-      <main className="max-w-[1400px] mx-auto p-6 flex flex-col xl:flex-row gap-6 items-start">
+      <main className="flex-1 p-6 pb-20 gap-6 w-full max-w-[1400px] mx-auto flex flex-col">
+        {/* Top Section: Calendar + Sidebar */}
+        <div className="flex flex-col xl:flex-row gap-6 w-full">
+          {/* Calendar Section */}
+          <div className="flex-1 min-w-0 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col p-6">
+            <CalendarHeader
+              currentDate={currentDate}
+              calendarView={calendarView}
+              onPrev={() => navigateCalendar("prev")}
+              onToday={() => setCurrentDate(new Date())}
+              onNext={() => navigateCalendar("next")}
+              onSetView={(v) => setCalendarView(v)}
+            />
 
-        {/* Calendar Section */}
-        <div className="flex-1 w-full xl:w-auto overflow-hidden">
-          <CalendarHeader
-            currentDate={currentDate}
-            calendarView={calendarView}
-            onPrev={() => navigateCalendar("prev")}
-            onToday={() => setCurrentDate(new Date())}
-            onNext={() => navigateCalendar("next")}
-            onSetView={(v) => setCalendarView(v)}
-          />
+            <CalendarGrid
+              daysToRender={daysToRender}
+              calendarView={calendarView}
+              startDayPadding={startDayPadding}
+              currentUser={currentUser}
+              boats={boats}
+              activitiesById={activitiesById}
+              boatsById={boatsById}
+              usersById={usersById}
+              calEventsByDate={calEventsByDate}
+              generalEventsByDate={generalEventsByDate}
+              maintenanceByDate={maintenanceByDate}
+              myAvailabilityByDate={myAvailabilityByDate}
+              allAvailabilitiesByDate={allAvailabilitiesByDate}
+              weatherData={weatherData}
+              notesByDate={notesByDate}
+              getEffectiveAssignment={getEffectiveAssignment}
+              isCommanderConfirmed={isCommanderConfirmed}
+              onDayClick={(dateStr) => {
+                setSelectedDate(dateStr);
+                setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
+              }}
+              onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
+              onDayEnter={(dateStr) => setHoveredDate(dateStr)}
+              onDayLeave={() => setHoveredDate(null)}
+              onMouseMove={handleMouseMove}
+              DayCell={DayCell}
+            />
+          </div>
 
-          <CalendarGrid
-            daysToRender={daysToRender}
-            calendarView={calendarView}
-            startDayPadding={startDayPadding}
-            currentUser={currentUser}
-            boats={boats}
-            activitiesById={activitiesById}
-            boatsById={boatsById}
-            usersById={usersById}
-            calEventsByDate={calEventsByDate}
-            generalEventsByDate={generalEventsByDate}
-            maintenanceByDate={maintenanceByDate}
-            myAvailabilityByDate={myAvailabilityByDate}
-            allAvailabilitiesByDate={allAvailabilitiesByDate}
-            weatherData={weatherData}
-            notesByDate={notesByDate}
-            getEffectiveAssignment={getEffectiveAssignment}
-            isCommanderConfirmed={isCommanderConfirmed}
-            onDayClick={(dateStr) => {
-              setSelectedDate(dateStr);
-              setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
-            }}
-            onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
-            onDayEnter={(dateStr) => setHoveredDate(dateStr)}
-            onDayLeave={() => setHoveredDate(null)}
-            onMouseMove={handleMouseMove}
-            DayCell={DayCell}
-          />
+          {/* Notice Board Section (Sidebar on XL, Bottom on Mobile) */}
+          <aside className="w-full xl:w-[400px] shrink-0 flex flex-col gap-6">
+            <NextAssignmentsBox
+              assignments={assignments}
+              generalEvents={generalEvents}
+              boats={boats}
+              activities={activities}
+              currentUser={currentUser}
+            />
+            <NoticeBoard currentUser={currentUser} />
+          </aside>
         </div>
 
-        {/* Notice Board Section (Sidebar on XL, Bottom on Mobile) */}
-        <aside className="w-full xl:w-[400px] shrink-0 flex flex-col gap-6">
-          <NextAssignmentsBox
-            assignments={assignments}
-            generalEvents={generalEvents}
-            boats={boats}
-            activities={activities}
-            currentUser={currentUser}
-          />
-          <NoticeBoard currentUser={currentUser} />
+        {/* Bottom Section: Horizontal Weather */}
+        <div className="w-full shrink-0">
           <WeatherWidget weatherData={weatherData} />
-        </aside>
+        </div>
 
       </main>
 

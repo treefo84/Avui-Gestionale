@@ -68,8 +68,13 @@ export const NoticeBoard: React.FC<NoticeBoardProps> = ({ currentUser }) => {
     }, []);
 
     useEffect(() => {
-        // Scroll to bottom when new messages arrive
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        // Scroll to bottom when new messages arrive WITHOUT scrolling the whole page
+        if (messagesEndRef.current) {
+            const parent = messagesEndRef.current.parentElement;
+            if (parent) {
+                parent.scrollTo({ top: parent.scrollHeight, behavior: 'smooth' });
+            }
+        }
     }, [messages]);
 
     const handleSendMessage = async (e: React.FormEvent) => {
