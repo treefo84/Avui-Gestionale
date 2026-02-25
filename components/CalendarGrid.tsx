@@ -1,6 +1,6 @@
 import React from "react";
 import { format, isSameDay, isWeekend } from "date-fns";
-import { AvailabilityStatus, Assignment, CalendarEvent, DayNote, GeneralEvent, MaintenanceRecord, User, Boat, Activity } from "../types";
+import { AvailabilityStatus, Availability, Assignment, CalendarEvent, DayNote, GeneralEvent, MaintenanceRecord, User, Boat, Activity } from "../types";
 import { WeekViewGrid } from "./WeekViewGrid";
 
 export type CalendarGridProps = {
@@ -19,6 +19,8 @@ export type CalendarGridProps = {
   generalEventsByDate: Map<string, GeneralEvent[]>;
   maintenanceByDate: { expiring: Map<string, MaintenanceRecord[]>; performed: Map<string, MaintenanceRecord[]> };
   myAvailabilityByDate: Map<string, AvailabilityStatus>;
+  allAvailabilitiesByDate: Map<string, Availability[]>;
+  weatherData?: any; // WeatherDataParsed o any per evitare errori temporanei
   notesByDate: Map<string, DayNote[]>;
 
   getEffectiveAssignment: (dateStr: string, boatId: string) => Assignment | undefined;
@@ -46,6 +48,8 @@ export function CalendarGrid({
   generalEventsByDate,
   maintenanceByDate,
   myAvailabilityByDate,
+  allAvailabilitiesByDate,
+  weatherData,
   notesByDate,
   getEffectiveAssignment,
   isCommanderConfirmed,
@@ -82,11 +86,33 @@ export function CalendarGrid({
         const dayCalendarEvents = calEventsByDate.get(dateStr) ?? [];
         const isDayWeekend = isWeekend(day);
         const myStatus = myAvailabilityByDate.get(dateStr);
+        const dayAvailabilities = allAvailabilitiesByDate.get(dateStr) ?? [];
 
         const daysGeneralEvents = generalEventsByDate.get(dateStr) ?? [];
         const expiringMaintenance = currentUser?.isAdmin ? (maintenanceByDate.expiring.get(dateStr) ?? []) : [];
         const performedMaintenance = currentUser?.isAdmin ? (maintenanceByDate.performed.get(dateStr) ?? []) : [];
         const notes = notesByDate.get(dateStr) ?? [];
+
+        // Weather Data extraction
+        let dayWeather = undefined;
+        if (weatherData && weatherData.daily && weatherData.daily.has(dateStr)) {
+          const dailyMeteo = weatherData.daily.get(dateStr);
+          if (dailyMeteo) {
+            // Necessario rimettere qui una utility rapida se si è in Grid o lasciarlo al DayCell.
+            // Usiamo una funzione base per Emoji.
+            const code = dailyMeteo.weatherCode;
+            let emoji = "❓";
+            if (code === 0) emoji = "☀️";
+            else if (code >= 1 && code <= 3) emoji = "⛅";
+            else if (code >= 45 && code <= 48) emoji = "🌫️";
+            else if (code >= 51 && code <= 65) emoji = "🌧️";
+            else if (code >= 71 && code <= 77) emoji = "❄️";
+            else if (code >= 80 && code <= 82) emoji = "🌦️";
+            else if (code >= 95 && code <= 99) emoji = "⛈️";
+
+            dayWeather = { emoji: emoji, wind: dailyMeteo.windSpeedMaxKnots, temp: dailyMeteo.tempMax };
+          }
+        }
 
         let bgClass = "bg-white";
         if (myStatus === AvailabilityStatus.AVAILABLE) bgClass = "bg-emerald-50/70 hover:bg-emerald-100/50";
@@ -106,6 +132,8 @@ export function CalendarGrid({
             daysGeneralEvents={daysGeneralEvents}
             expiringMaintenance={expiringMaintenance}
             performedMaintenance={performedMaintenance}
+            dayAvailabilities={dayAvailabilities}
+            dayWeather={dayWeather}
             boats={boats}
             activitiesById={activitiesById}
             boatsById={boatsById}

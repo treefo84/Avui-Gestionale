@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect } from "react";
 import { format, isSameDay, isWeekend, parse } from "date-fns";
-import { AvailabilityStatus, Assignment, CalendarEvent, DayNote, GeneralEvent, MaintenanceRecord, User, Boat, Activity } from "../types";
+import { AvailabilityStatus, Availability, Assignment, CalendarEvent, DayNote, GeneralEvent, MaintenanceRecord, User, Boat, Activity, Role } from "../types";
 
 const parseDate = (dateString?: string | null) => {
     if (!dateString) return new Date();
@@ -22,6 +22,8 @@ type Props = {
     generalEventsByDate: Map<string, GeneralEvent[]>;
     maintenanceByDate: { expiring: Map<string, MaintenanceRecord[]>; performed: Map<string, MaintenanceRecord[]> };
     myAvailabilityByDate: Map<string, AvailabilityStatus>;
+    allAvailabilitiesByDate: Map<string, Availability[]>;
+    weatherData?: any;
     notesByDate: Map<string, DayNote[]>;
     getEffectiveAssignment: (dateStr: string, boatId: string) => Assignment | undefined;
     isCommanderConfirmed: (a: Assignment) => boolean;
@@ -39,10 +41,13 @@ export function WeekViewGrid(props: Props) {
         boats,
         activitiesById,
         boatsById,
+        usersById,
         calEventsByDate,
         generalEventsByDate,
         maintenanceByDate,
         myAvailabilityByDate,
+        allAvailabilitiesByDate,
+        weatherData,
         notesByDate,
         getEffectiveAssignment,
         isCommanderConfirmed,
@@ -96,82 +101,135 @@ export function WeekViewGrid(props: Props) {
     };
 
     return (
-        <div className="flex flex-col h-[700px] bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            {/* Header Sticky: Giorni e All-Day */}
-            <div className="flex bg-slate-50 border-b border-slate-200 z-10 sticky top-0">
-                <div className="w-16 flex-shrink-0 border-r border-slate-200">
-                    {/* Fuso Orario spalla */}
-                    <div className="h-12 flex items-end justify-center pb-1 text-[10px] text-slate-400 font-medium">GMT+1</div>
-                </div>
+        <div className="flex flex-col h-[calc(100vh-250px)] min-h-[500px] bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            {/* Grid Scrollable: Time Grid and Header */}
+            <div className="flex-1 overflow-y-auto relative custom-scrollbar bg-slate-50" ref={scrollRef}>
+                {/* Header Sticky: Giorni e All-Day */}
+                <div className="flex bg-slate-50 border-b border-slate-300 z-30 sticky top-0 shadow-sm">
+                    <div className="w-16 flex-shrink-0 border-r border-slate-200 bg-slate-50">
+                        {/* Fuso Orario spalla */}
+                        <div className="h-12 flex items-end justify-center pb-1 text-[10px] text-slate-400 font-medium">GMT+1</div>
+                    </div>
 
-                <div className="flex-1 grid grid-cols-7 divide-x divide-slate-200">
-                    {daysToRender.map((day) => {
-                        const dateStr = format(day, "yyyy-MM-dd");
-                        const isToday = isSameDay(day, new Date());
-                        const myStatus = myAvailabilityByDate.get(dateStr);
-                        const isDayWeekend = isWeekend(day);
-                        const { allDayEvents } = getEventsByDay(dateStr);
-                        const notes = notesByDate.get(dateStr) || [];
+                    <div className="flex-1 grid grid-cols-7 divide-x divide-slate-200 bg-slate-50">
+                        {daysToRender.map((day) => {
+                            const dateStr = format(day, "yyyy-MM-dd");
+                            const isToday = isSameDay(day, new Date());
+                            const myStatus = myAvailabilityByDate.get(dateStr);
+                            const dayAvailabilities = allAvailabilitiesByDate.get(dateStr) ?? [];
+                            const isDayWeekend = isWeekend(day);
+                            const { allDayEvents } = getEventsByDay(dateStr);
+                            const notes = notesByDate.get(dateStr) || [];
 
-                        let bgClass = "bg-transparent";
-                        if (myStatus === AvailabilityStatus.AVAILABLE) bgClass = "bg-emerald-50/70";
-                        if (myStatus === AvailabilityStatus.UNAVAILABLE) bgClass = "bg-rose-50/70";
+                            // Weather Data extraction
+                            let dayWeather = undefined;
+                            if (weatherData && weatherData.daily && weatherData.daily.has(dateStr)) {
+                                const dailyMeteo = weatherData.daily.get(dateStr);
+                                if (dailyMeteo) {
+                                    const code = dailyMeteo.weatherCode;
+                                    let emoji = "❓";
+                                    if (code === 0) emoji = "☀️";
+                                    else if (code >= 1 && code <= 3) emoji = "⛅";
+                                    else if (code >= 45 && code <= 48) emoji = "🌫️";
+                                    else if (code >= 51 && code <= 65) emoji = "🌧️";
+                                    else if (code >= 71 && code <= 77) emoji = "❄️";
+                                    else if (code >= 80 && code <= 82) emoji = "🌦️";
+                                    else if (code >= 95 && code <= 99) emoji = "⛈️";
 
-                        return (
-                            <div
-                                key={dateStr}
-                                className={`flex flex-col ${bgClass}`}
-                                onClick={() => onDayClick(dateStr)}
-                            >
-                                {/* Day Header */}
-                                <div className={`p-2 text-center border-b border-slate-100 ${isToday ? 'bg-blue-50/50' : ''}`}>
-                                    <div className="text-xs font-semibold text-slate-500 uppercase">{format(day, "eee")}</div>
-                                    <div className={`text-xl font-bold w-8 h-8 flex items-center justify-center rounded-full mx-auto ${isToday ? 'bg-blue-600 text-white shadow-sm' : isDayWeekend ? 'text-slate-800' : 'text-slate-700'}`}>
-                                        {format(day, "d")}
+                                    dayWeather = { emoji: emoji, wind: dailyMeteo.windSpeedMaxKnots, temp: dailyMeteo.tempMax };
+                                }
+                            }
+
+                            let bgClass = "bg-transparent";
+                            if (myStatus === AvailabilityStatus.AVAILABLE) bgClass = "bg-emerald-50/70";
+                            if (myStatus === AvailabilityStatus.UNAVAILABLE) bgClass = "bg-rose-50/70";
+
+                            return (
+                                <div
+                                    key={dateStr}
+                                    className={`flex flex-col ${bgClass}`}
+                                    onClick={() => onDayClick(dateStr)}
+                                >
+                                    {/* Day Header */}
+                                    <div className={`p-2 text-center border-b border-slate-100 ${isToday ? 'bg-blue-50/50' : ''}`}>
+                                        <div className="text-xs font-semibold text-slate-500 uppercase">{format(day, "eee")}</div>
+                                        <div className={`text-xl font-bold w-8 h-8 flex items-center justify-center rounded-full mx-auto ${isToday ? 'bg-blue-600 text-white shadow-sm' : isDayWeekend ? 'text-slate-800' : 'text-slate-700'}`}>
+                                            {format(day, "d")}
+                                        </div>
+
+                                        {/* Meteo Icon */}
+                                        {dayWeather && (
+                                            <div className="flex justify-center gap-1 mt-1 text-[9px] font-bold text-slate-500 bg-white/60 px-1 py-0.5 rounded shadow-sm border border-slate-100 mx-auto w-fit" title={`Max: ${dayWeather.temp}°C, Vento Max: ${dayWeather.wind} nodi`}>
+                                                <span>{dayWeather.emoji}</span>
+                                                <span className="text-sky-700">{dayWeather.wind} kt</span>
+                                            </div>
+                                        )}
+
+                                        {/* Riepilogo Disponibilità */}
+                                        {dayAvailabilities.length > 0 && (
+                                            <div className="flex gap-1.5 justify-center mt-1 text-[9px] font-bold text-emerald-700/70 bg-emerald-50/50 px-1 py-0.5 rounded border border-emerald-100/50 shadow-sm mx-auto w-fit">
+                                                {(() => {
+                                                    let instructors = 0;
+                                                    let helpers = 0;
+                                                    dayAvailabilities.forEach(a => {
+                                                        const role = usersById.get(a.userId)?.role;
+                                                        if (role === Role.INSTRUCTOR || role === Role.MANAGER) instructors++;
+                                                        else if (role === Role.HELPER) helpers++;
+                                                    });
+
+                                                    if (instructors === 0 && helpers === 0) return null;
+
+                                                    return (
+                                                        <>
+                                                            {instructors > 0 && <span title="Comandanti Disponibili">⚓ {instructors}</span>}
+                                                            {helpers > 0 && <span title="Aiutanti Disponibili">🛟 {helpers}</span>}
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* All-Day Content Area (Fixed short height with overflow) */}
+                                    <div className="h-24 overflow-y-auto p-1 space-y-1 custom-scrollbar cursor-pointer hover:bg-slate-100/50 transition-colors">
+                                        {/* Notes Indicator */}
+                                        {notes.length > 0 && (
+                                            <div className="h-5 bg-amber-100 border border-amber-200 text-amber-700 text-[10px] rounded px-1 flex items-center font-bold">
+                                                {notes.length} Note
+                                            </div>
+                                        )}
+
+                                        {/* All Day Events */}
+                                        {allDayEvents.map(e => (
+                                            <div key={e.id} className={`h-5 text-[10px] rounded px-1 flex items-center font-bold truncate ${e.isCal ? 'bg-indigo-600 text-white' : 'bg-purple-500 text-white'}`}>
+                                                {e.title || (e.activityId ? activitiesById.get(e.activityId)?.name : 'Evento')}
+                                            </div>
+                                        ))}
+
+                                        {/* Boats/Assignments */}
+                                        {boats.map(boat => {
+                                            const assignment = getEffectiveAssignment(dateStr, boat.id);
+                                            if (!assignment) return null;
+                                            const activity = assignment.activityId ? activitiesById.get(assignment.activityId) : undefined;
+                                            const isConfirmed = isCommanderConfirmed(assignment);
+
+                                            let color = "bg-slate-500 text-white";
+                                            if (isConfirmed) color = "bg-emerald-600 text-white";
+
+                                            return (
+                                                <div key={boat.id} className={`h-5 text-[9px] rounded px-1 flex items-center font-bold truncate ${color}`}>
+                                                    {boat.name}: {activity?.name || 'M'}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
-
-                                {/* All-Day Content Area (Fixed short height with overflow) */}
-                                <div className="h-24 overflow-y-auto p-1 space-y-1 custom-scrollbar cursor-pointer hover:bg-slate-100/50 transition-colors">
-                                    {/* Notes Indicator */}
-                                    {notes.length > 0 && (
-                                        <div className="h-5 bg-amber-100 border border-amber-200 text-amber-700 text-[10px] rounded px-1 flex items-center font-bold">
-                                            {notes.length} Note
-                                        </div>
-                                    )}
-
-                                    {/* All Day Events */}
-                                    {allDayEvents.map(e => (
-                                        <div key={e.id} className={`h-5 text-[10px] rounded px-1 flex items-center font-bold truncate ${e.isCal ? 'bg-indigo-600 text-white' : 'bg-purple-500 text-white'}`}>
-                                            {e.title || (e.activityId ? activitiesById.get(e.activityId)?.name : 'Evento')}
-                                        </div>
-                                    ))}
-
-                                    {/* Boats/Assignments */}
-                                    {boats.map(boat => {
-                                        const assignment = getEffectiveAssignment(dateStr, boat.id);
-                                        if (!assignment) return null;
-                                        const activity = assignment.activityId ? activitiesById.get(assignment.activityId) : undefined;
-                                        const isConfirmed = isCommanderConfirmed(assignment);
-
-                                        let color = "bg-slate-500 text-white";
-                                        if (isConfirmed) color = "bg-emerald-600 text-white";
-
-                                        return (
-                                            <div key={boat.id} className={`h-5 text-[9px] rounded px-1 flex items-center font-bold truncate ${color}`}>
-                                                {boat.name}: {activity?.name || 'M'}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
+                    </div>
                 </div>
-            </div>
 
-            {/* Grid Scrollable: Time Grid */}
-            <div className="flex-1 overflow-y-auto relative custom-scrollbar bg-slate-50" ref={scrollRef}>
+                {/* Content Container per Time Grid */}
                 <div className="flex relative" style={{ height: `${24 * HOUR_HEIGHT}px` }}>
 
                     {/* Time Axis (Left column) */}

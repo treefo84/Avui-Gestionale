@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Activity, Assignment, AssignmentStatus, Boat, Role, User } from '../types';
-import { X, Lock, Save, Calendar, Ship, MapPin, Mail, Scroll, Link as LinkIcon, Check, Loader2, Ban, Phone, Cake } from 'lucide-react';
+import { X, Lock, Save, Calendar, Ship, MapPin, Mail, Scroll, Link as LinkIcon, Check, Loader2, Ban, Phone, Cake, Upload } from 'lucide-react';
 import { format, isFuture } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { supabase } from '../supabaseClient';
@@ -16,11 +16,9 @@ interface ProfilePageProps {
     onUpdateUser: (field: keyof User, value: any) => void;
 }
 
-const AVATAR_SEEDS = [
-    'Trifo', 'Ciccio', 'Gianlu', 'Francesca', 'Mauro', 'Matteo', 'Gennaro', 'Emanuele',
-    'Luca', 'Riccardo', 'Salvatore', 'Roberto', 'Felix', 'Boots', 'Cuddles', 'Snuggles',
-    'Bella', 'Luna', 'Charlie', 'Max', 'Sailor', 'Captain', 'Pirate', 'Mate'
-];
+// Stili disponibili su DiceBear che si adattano al contesto
+const AVATAR_STYLES = ['avataaars', 'bottts', 'identicon', 'shapes'];
+const NAUTICAL_COLORS = ['1e3a8a', '0ea5e9', '0f766e', 'f59e0b', 'f8fafc', 'cbd5e1'];
 
 const parseDate = (dateString: string) => {
     const [year, month, day] = dateString.split('-').map(Number);
@@ -40,6 +38,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     const [confirmPassword, setConfirmPassword] = useState('');
     const [passMessage, setPassMessage] = useState('');
     const [isConnectingCalendar, setIsConnectingCalendar] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
 
     const handlePasswordChange = (e: React.FormEvent) => {
         e.preventDefault();
@@ -55,8 +54,52 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     };
 
     const handleAvatarChange = (seed: string) => {
-        const newAvatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=${['b6e3f4', 'c0aede', 'ffdfbf'][Math.floor(Math.random() * 3)]}`;
+        const randomStyle = AVATAR_STYLES[Math.floor(Math.random() * AVATAR_STYLES.length)];
+        const randomBg = NAUTICAL_COLORS[Math.floor(Math.random() * NAUTICAL_COLORS.length)];
+        const newAvatarUrl = `https://api.dicebear.com/7.x/${randomStyle}/svg?seed=${seed}&backgroundColor=${randomBg}`;
         onUpdateUser('avatar', newAvatarUrl);
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Limite 1MB
+        if (file.size > 1 * 1024 * 1024) {
+            alert('L\'immagine non può superare 1MB.');
+            return;
+        }
+
+        setIsUploading(true);
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+            const filePath = `${fileName}`; // Auth policy checks if file starts with auth.uid(), which user.id is (since it corresponds to auth_id in the DB for this feature)
+
+            // Per sicurezza, rinominiamo con user.id che corrisponde al subject (auth_id)
+            const safeFilePath = `${user.id}/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(safeFilePath, file, { upsert: true });
+
+            if (uploadError) throw uploadError;
+
+            // Get public URL
+            const { data: { publicUrl } } = supabase.storage
+                .from('avatars')
+                .getPublicUrl(safeFilePath);
+
+            // Per forzare sempre l'aggiornamento grafico bypassando la cache del browser
+            const timestampedUrl = `${publicUrl}?t=${Date.now()}`;
+            onUpdateUser('avatar', timestampedUrl);
+
+        } catch (error: any) {
+            console.error('Errore durante il caricamento:', error);
+            alert(`Errore nel caricamento dell'immagine: ${error.message}`);
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     const toggleGoogleCalendar = async () => {
@@ -248,20 +291,44 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
                     {/* Avatar Picker */}
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Cambia Faccia</h3>
-                        <div className="grid grid-cols-5 gap-2 max-h-[200px] overflow-y-auto custom-scrollbar">
-                            {AVATAR_SEEDS.map((seed) => (
-                                <button
-                                    key={seed}
-                                    onClick={() => handleAvatarChange(seed)}
-                                    className={`rounded-full overflow-hidden transition-all border-2 ${user.avatar.includes(seed) ? 'border-blue-500 scale-110' : 'border-transparent hover:border-slate-300'}`}
-                                >
-                                    <img
-                                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=${['b6e3f4', 'c0aede', 'ffdfbf'][Math.floor(Math.random() * 3)]}`}
-                                        className="w-full h-full bg-slate-50"
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            Modifica Foto Profilo
+                        </h3>
+
+                        <div className="flex flex-col sm:flex-row gap-6 items-start">
+                            {/* Upload personalizzato */}
+                            <div className="bg-slate-50 p-4 border border-slate-200 rounded-xl flex-1 text-center w-full">
+                                <label className={`flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    {isUploading ? (
+                                        <Loader2 size={32} className="text-slate-400 animate-spin mb-2" />
+                                    ) : (
+                                        <Upload size={32} className="text-slate-400 mb-2" />
+                                    )}
+                                    <span className="text-sm font-bold text-slate-600">
+                                        {isUploading ? 'Caricamento...' : 'Carica una foto (max 1MB)'}
+                                    </span>
+                                    <input
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/gif,image/webp"
+                                        className="hidden"
+                                        onChange={handleFileUpload}
+                                        disabled={isUploading}
                                     />
+                                </label>
+                            </div>
+
+                            {/* Generatore Nautico */}
+                            <div className="flex-1 w-full flex flex-col items-center justify-center">
+                                <p className="text-xs font-bold text-slate-500 uppercase mb-3 text-center">Oppure genera casualmente</p>
+                                <button
+                                    onClick={() => handleAvatarChange(Math.random().toString(36).substring(7))}
+                                    className="flex w-full flex-col items-center justify-center p-6 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer hover:bg-slate-100 transition-colors"
+                                >
+                                    <span className="text-4xl mb-2">🎲</span>
+                                    <span className="text-sm font-bold text-slate-600">Tira il dado!</span>
                                 </button>
-                            ))}
+                                <p className="text-[10px] text-slate-400 mt-3 text-center">Genera avatar e colori a tema marittimo.</p>
+                            </div>
                         </div>
                     </div>
                 </div>

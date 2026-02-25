@@ -22,6 +22,7 @@ import {
   UserNotification,
 } from "./types";
 import { sendNotificationEmail } from "./services/emailService";
+import { fetchWeather, WeatherDataParsed, getWeatherEmoji, getWindDirection } from './services/weatherService';
 
 import { DayModal } from "./components/DayModal";
 import { DayHoverModal } from "./components/DayHoverModal";
@@ -35,6 +36,7 @@ import { CalendarHeader } from "./components/CalendarHeader";
 import { AppNavbar } from "./components/AppNavbar";
 import { NoticeBoard } from "./components/NoticeBoard";
 import { NextAssignmentsBox } from "./components/NextAssignmentsBox";
+import { WeatherWidget } from "./components/WeatherWidget";
 
 
 
@@ -231,6 +233,9 @@ const App: React.FC = () => {
   const [dayNotes, setDayNotes] = useState<DayNote[]>([]);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState<MaintenanceRecord[]>([]);
+
+  // Meteo
+  const [weatherData, setWeatherData] = useState<WeatherDataParsed | null>(null);
 
   const toUuidOrNull = (v: any) => {
     const s = String(v ?? "").trim();
@@ -2221,6 +2226,21 @@ const App: React.FC = () => {
     return m;
   }, [availabilities, currentUser?.id]);
 
+  // 2.5) TUTTE le disponibilità 'AVAILABLE' per data (per il riepilogo a calendario)
+  const allAvailabilitiesByDate = useMemo(() => {
+    const m = new Map<string, Availability[]>();
+    for (const a of availabilities) {
+      if (a.status !== AvailabilityStatus.AVAILABLE) continue;
+      const d = (a.date ?? "").slice(0, 10);
+      if (!d) continue;
+
+      const arr = m.get(d) ?? [];
+      arr.push(a);
+      m.set(d, arr);
+    }
+    return m;
+  }, [availabilities]);
+
   // 3) Note per data
   const notesByDate = useMemo(() => {
     const m = new Map<string, DayNote[]>();
@@ -2435,6 +2455,16 @@ const App: React.FC = () => {
     console.log("[DBG] assignmentsByBoatId keys:", Array.from(assignmentsByBoatId.keys()).length);
   }, [assignments.length, assignmentsByBoatId]);
 
+  // ---------- INIT METEO IMPERIA ----------
+  useEffect(() => {
+    // Coordinate di Imperia
+    const lat = 43.8860;
+    const lon = 8.0264;
+    fetchWeather(lat, lon).then(data => {
+      if (data) setWeatherData(data);
+    });
+  }, []);
+
 
   // =========================
   // --- GUARDS ---
@@ -2618,6 +2648,8 @@ const App: React.FC = () => {
             generalEventsByDate={generalEventsByDate}
             maintenanceByDate={maintenanceByDate}
             myAvailabilityByDate={myAvailabilityByDate}
+            allAvailabilitiesByDate={allAvailabilitiesByDate}
+            weatherData={weatherData}
             notesByDate={notesByDate}
             getEffectiveAssignment={getEffectiveAssignment}
             isCommanderConfirmed={isCommanderConfirmed}
@@ -2636,13 +2668,14 @@ const App: React.FC = () => {
         {/* Notice Board Section (Sidebar on XL, Bottom on Mobile) */}
         <aside className="w-full xl:w-[400px] shrink-0 flex flex-col gap-6">
           <NextAssignmentsBox
-            currentUser={currentUser}
             assignments={assignments}
             generalEvents={generalEvents}
             boats={boats}
             activities={activities}
+            currentUser={currentUser}
           />
           <NoticeBoard currentUser={currentUser} />
+          <WeatherWidget weatherData={weatherData} />
         </aside>
 
       </main>
@@ -2708,7 +2741,8 @@ type DayCellProps = {
   daysGeneralEvents: GeneralEvent[];
   expiringMaintenance: MaintenanceRecord[];
   performedMaintenance: MaintenanceRecord[];
-
+  dayAvailabilities: Availability[];
+  dayWeather?: { emoji: string; wind: number; temp: number };
   boats: Boat[];
   activitiesById: Map<string, Activity>;
   boatsById: Map<string, Boat>;
@@ -2736,6 +2770,8 @@ const DayCell = React.memo(function DayCell(props: DayCellProps) {
     daysGeneralEvents,
     expiringMaintenance,
     performedMaintenance,
+    dayAvailabilities,
+    dayWeather,
     boats,
     activitiesById,
     boatsById,
@@ -2767,6 +2803,18 @@ const DayCell = React.memo(function DayCell(props: DayCellProps) {
         >
           {format(day, "d")}
         </span>
+
+        {/* Meteo Icon */}
+        {dayWeather && (
+          <div className="flex gap-1 ml-1 mt-0.5 text-[9px] font-bold text-slate-500 bg-white/60 px-1 py-0.5 rounded shadow-sm border border-slate-100" title={`Max: ${dayWeather.temp}°C, Vento Max: ${dayWeather.wind} nodi`}>
+            <span>{dayWeather.emoji}</span>
+            <span className="text-sky-700">{dayWeather.wind} kt</span>
+          </div>
+        )}
+
+        <div className="flex-1"></div>
+
+        {/* Riepilogo Disponibilità */}
       </div>
 
       <div className="flex flex-col gap-1 flex-1">
