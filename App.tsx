@@ -1230,32 +1230,44 @@ const App: React.FC = () => {
       }
 
       if (notifsToCreate.length) {
-        // upsert = se esiste già (grazie all'indice unique) non duplica
-        const { error: nErr } = await supabase
+        // Evitiamo upsert per problemi di policy RLS (update_own non fa aggiornare notifiche altrui).
+        // Controlliamo prima quali notifiche esistono già per non avere errori di unique constraint.
+        const refKeys = notifsToCreate.map(n => n.ref_key);
+        const { data: existingNotifs } = await supabase
           .from("notifications")
-          .upsert(notifsToCreate, { onConflict: "user_id,type,ref_key" });
+          .select("ref_key")
+          .in("ref_key", refKeys);
 
-        if (nErr) console.error("[A13][UPSERT notifications] error:", nErr);
-        else {
-          Promise.allSettled(
-            notifsToCreate.map(async (notif) => {
-              const u = users.find(x => x.id === notif.user_id);
-              if (u?.email) {
-                await sendNotificationEmail({
-                  to: u.email,
-                  subject: `Nuova Avui Notifica: ${notif.message}`,
-                  html: `<p>Ciao ${u.name},</p><p>${notif.message}</p><p>Accedi all'app per maggiori dettagli.</p>`
-                });
-              }
-            })
-          ).catch(e => console.error("Email send error", e));
+        const existingKeys = existingNotifs?.map(n => n.ref_key) || [];
+        const toInsert = notifsToCreate.filter(n => !existingKeys.includes(n.ref_key));
 
-          // refresh UI locale solo se la notifica è per ME
-          await loadNotificationsFromDb();
+        if (toInsert.length > 0) {
+          const { error: nErr } = await supabase
+            .from("notifications")
+            .insert(toInsert);
+
+          if (nErr) console.error("[A13][INSERT notifications] error:", nErr);
+          else {
+            Promise.allSettled(
+              toInsert.map(async (notif) => {
+                const u = users.find(x => x.id === notif.user_id);
+                if (u?.email) {
+                  await sendNotificationEmail({
+                    to: u.email,
+                    subject: `Nuova Avui Notifica: ${notif.message}`,
+                    html: `<p>Ciao ${u.name},</p><p>${notif.message}</p><p>Accedi all'app per maggiori dettagli.</p>`
+                  });
+                }
+              })
+            ).catch(e => console.error("Email send error", e));
+
+            // refresh UI locale solo se la notifica è per ME
+            await loadNotificationsFromDb();
+          }
         }
       }
     } catch (e) {
-      console.error("[A13][UPSERT notifications] unexpected:", e);
+      console.error("[A13][INSERT notifications] unexpected:", e);
     }
 
 
