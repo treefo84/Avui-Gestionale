@@ -3024,11 +3024,7 @@ const DayCell = React.memo(function DayCell(props: DayCellProps) {
             >
               <CheckCircle size={10} className="mr-1 shrink-0" />
               <span
-                className="truncate cursor-pointer hover:underline"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenBoatPage(boat!.id);
-                }}
+                className="truncate"
               >
                 {boat?.name}: {record.description}
               </span>
@@ -3053,12 +3049,8 @@ const DayCell = React.memo(function DayCell(props: DayCellProps) {
           return (
             <div
               key={`${boat.id}-${assignment.id}`}
-              className={`h-6 text-[10px] px-2 flex items-center overflow-hidden whitespace-nowrap ${barColor} rounded-md mx-1 cursor-pointer transition-opacity hover:opacity-90`}
+              className={`h-6 text-[10px] px-2 flex items-center overflow-hidden whitespace-nowrap ${barColor} rounded-md mx-1 transition-opacity hover:opacity-90`}
               title={label}
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenBoatPage(boat.id);
-              }}
             >
               <span className="truncate">{label}</span>
             </div>
