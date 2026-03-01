@@ -202,8 +202,8 @@ export const BoatCard: React.FC<BoatCardProps> = ({
                                     min="1"
                                     max="14"
                                     disabled={!isInstructor}
-                                    value={assignment.durationDays}
-                                    onChange={(e) => handleFieldChange('durationDays', parseInt(e.target.value))}
+                                    value={assignment.durationDays || 1}
+                                    onChange={(e) => handleFieldChange('durationDays', parseInt(e.target.value) || 1)}
                                     style={{ colorScheme: 'light' }}
                                     className="w-12 text-xs p-1 rounded border border-slate-300 text-center disabled:opacity-70 bg-white text-slate-900 outline-none focus:border-blue-500"
                                 />

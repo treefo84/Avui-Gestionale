@@ -37,6 +37,7 @@ import { AppNavbar } from "./components/AppNavbar";
 import { NoticeBoard } from "./components/NoticeBoard";
 import { NextAssignmentsBox } from "./components/NextAssignmentsBox";
 import { WeatherWidget } from "./components/WeatherWidget";
+import { TableView } from "./components/TableView";
 
 
 
@@ -201,7 +202,7 @@ const App: React.FC = () => {
   // --- UI STATE ---
   const [appReady, setAppReady] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [calendarView, setCalendarView] = useState<"month" | "week">("month");
+  const [calendarView, setCalendarView] = useState<"month" | "week" | "table">("month");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
@@ -1114,6 +1115,9 @@ const App: React.FC = () => {
 
 
   const handleUpdateAssignment = async (newAssignment: Assignment) => {
+    // Trova l'assegnazione precedente
+    const oldAssignment = assignments.find(a => a.id === newAssignment.id);
+
     // UI ottimistica
     setAssignments((prev) => {
       const existingById = prev.findIndex((a) => a.id === newAssignment.id);
@@ -1152,7 +1156,7 @@ const App: React.FC = () => {
 
     const { data, error } = await supabase
       .from("assignments")
-      .upsert(payload, { onConflict: "boat_id,date" })
+      .upsert(payload, { onConflict: "id" })
       .select("*")
       .single();
 
@@ -1193,30 +1197,36 @@ const App: React.FC = () => {
       const notifsToCreate: any[] = [];
       const nowIso = new Date().toISOString();
 
-      if (instructorId) {
-        const refKey = `ASSIGNMENT_REQUEST:${newAssignment.id}:INSTRUCTOR`;
-        notifsToCreate.push({
-          user_id: instructorId,
-          type: NotificationType.ASSIGNMENT_REQUEST,
-          ref_key: refKey,
-          message: `Nuovo incarico come COMANDANTE il ${newAssignment.date}`,
-          read: false,
-          data: { assignmentId: newAssignment.id, role: "INSTRUCTOR" },
-          created_at: nowIso,
-        });
+      if (instructorId && newAssignment.instructorStatus === "PENDING") {
+        const isNewOrChanged = oldAssignment?.instructorId !== instructorId || oldAssignment?.instructorStatus !== "PENDING";
+        if (isNewOrChanged) {
+          const refKey = `ASSIGNMENT_REQUEST:${newAssignment.id}:INSTRUCTOR`;
+          notifsToCreate.push({
+            user_id: instructorId,
+            type: NotificationType.ASSIGNMENT_REQUEST,
+            ref_key: refKey,
+            message: `Nuovo incarico come COMANDANTE il ${newAssignment.date}`,
+            read: false,
+            data: { assignmentId: newAssignment.id, role: "INSTRUCTOR" },
+            created_at: nowIso,
+          });
+        }
       }
 
-      if (helperId) {
-        const refKey = `ASSIGNMENT_REQUEST:${newAssignment.id}:HELPER`;
-        notifsToCreate.push({
-          user_id: helperId,
-          type: NotificationType.ASSIGNMENT_REQUEST,
-          ref_key: refKey,
-          message: `Nuovo incarico come AIUTANTE il ${newAssignment.date}`,
-          read: false,
-          data: { assignmentId: newAssignment.id, role: "HELPER" },
-          created_at: nowIso,
-        });
+      if (helperId && newAssignment.helperStatus === "PENDING") {
+        const isNewOrChanged = oldAssignment?.helperId !== helperId || oldAssignment?.helperStatus !== "PENDING";
+        if (isNewOrChanged) {
+          const refKey = `ASSIGNMENT_REQUEST:${newAssignment.id}:HELPER`;
+          notifsToCreate.push({
+            user_id: helperId,
+            type: NotificationType.ASSIGNMENT_REQUEST,
+            ref_key: refKey,
+            message: `Nuovo incarico come AIUTANTE il ${newAssignment.date}`,
+            read: false,
+            data: { assignmentId: newAssignment.id, role: "HELPER" },
+            created_at: nowIso,
+          });
+        }
       }
 
       if (notifsToCreate.length) {
@@ -2635,34 +2645,52 @@ const App: React.FC = () => {
               onSetView={(v) => setCalendarView(v)}
             />
 
-            <CalendarGrid
-              daysToRender={daysToRender}
-              calendarView={calendarView}
-              startDayPadding={startDayPadding}
-              currentUser={currentUser}
-              boats={boats}
-              activitiesById={activitiesById}
-              boatsById={boatsById}
-              usersById={usersById}
-              calEventsByDate={calEventsByDate}
-              generalEventsByDate={generalEventsByDate}
-              maintenanceByDate={maintenanceByDate}
-              myAvailabilityByDate={myAvailabilityByDate}
-              allAvailabilitiesByDate={allAvailabilitiesByDate}
-              weatherData={weatherData}
-              notesByDate={notesByDate}
-              getEffectiveAssignment={getEffectiveAssignment}
-              isCommanderConfirmed={isCommanderConfirmed}
-              onDayClick={(dateStr) => {
-                setSelectedDate(dateStr);
-                setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
-              }}
-              onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
-              onDayEnter={(dateStr) => setHoveredDate(dateStr)}
-              onDayLeave={() => setHoveredDate(null)}
-              onMouseMove={handleMouseMove}
-              DayCell={DayCell}
-            />
+            <div className="flex-1 bg-white xl:bg-transparent rounded-xl xl:rounded-none">
+              {calendarView === "table" ? (
+                <TableView
+                  users={users}
+                  availabilities={availabilities}
+                  assignments={assignments}
+                  generalEvents={generalEvents}
+                  boats={boats}
+                  activities={activities}
+                  onDateClick={(dateStr) => {
+                    setSelectedDate(dateStr);
+                    setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
+                  }}
+                  onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
+                />
+              ) : (
+                <CalendarGrid
+                  daysToRender={daysToRender}
+                  calendarView={calendarView}
+                  startDayPadding={startDayPadding}
+                  currentUser={currentUser}
+                  boats={boats}
+                  activitiesById={activitiesById}
+                  boatsById={boatsById}
+                  usersById={usersById}
+                  calEventsByDate={calEventsByDate}
+                  generalEventsByDate={generalEventsByDate}
+                  maintenanceByDate={maintenanceByDate}
+                  myAvailabilityByDate={myAvailabilityByDate}
+                  allAvailabilitiesByDate={allAvailabilitiesByDate}
+                  weatherData={weatherData}
+                  notesByDate={notesByDate}
+                  getEffectiveAssignment={getEffectiveAssignment}
+                  isCommanderConfirmed={isCommanderConfirmed}
+                  onDayClick={(dateStr) => {
+                    setSelectedDate(dateStr);
+                    setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
+                  }}
+                  onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
+                  onDayEnter={(dateStr) => setHoveredDate(dateStr)}
+                  onDayLeave={() => setHoveredDate(null)}
+                  onMouseMove={handleMouseMove}
+                  DayCell={DayCell}
+                />
+              )}
+            </div>
           </div>
 
           {/* Notice Board Section (Sidebar on XL, Bottom on Mobile) */}
