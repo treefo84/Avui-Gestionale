@@ -1229,6 +1229,53 @@ const App: React.FC = () => {
         }
       }
 
+      // --- 2. NOTIFICHE DI MODIFICA O RIMOZIONE ---
+      if (oldAssignment) {
+        const isDateChanged = oldAssignment.date !== newAssignment.date;
+        const isDurationChanged = oldAssignment.durationDays !== newAssignment.durationDays;
+        const isBoatChanged = oldAssignment.boatId !== newAssignment.boatId;
+        const isActivityChanged = oldAssignment.activityId !== newAssignment.activityId;
+        const isNotesChanged = oldAssignment.notes !== newAssignment.notes;
+        const isCancelled = newAssignment.status === AssignmentStatus.CANCELLED && oldAssignment.status !== AssignmentStatus.CANCELLED;
+        const isRestored = newAssignment.status === AssignmentStatus.CONFIRMED && oldAssignment.status === AssignmentStatus.CANCELLED;
+
+        const isMajorChange = isDateChanged || isDurationChanged || isBoatChanged || isActivityChanged || isNotesChanged || isCancelled || isRestored;
+        const boatName = boats.find(b => b.id === newAssignment.boatId)?.name || 'Barca';
+
+        const checkChangeNotif = (oldUserId: string | null, newUserId: string | null, oldStatus: string | undefined, roleLabel: string) => {
+          if (oldUserId && oldUserId !== newUserId && oldStatus === "CONFIRMED") {
+            const msg = `L'incarico come ${roleLabel} sulla barca ${boatName} del ${oldAssignment.date} ti è stato revocato.`;
+            notifsToCreate.push({
+              user_id: oldUserId,
+              type: NotificationType.ASSIGNMENT_CANCELLED,
+              ref_key: `ASSIGNMENT_REMOVED:${newAssignment.id}:${oldUserId}:${Date.now()}`,
+              message: msg,
+              read: false,
+              data: { assignmentId: newAssignment.id },
+              created_at: nowIso,
+            });
+          } else if (newUserId && oldUserId === newUserId && oldStatus === "CONFIRMED" && isMajorChange) {
+            let msg = `L'incarico come ${roleLabel} sulla barca ${boatName} del ${newAssignment.date} ha subìto delle modifiche.`;
+            if (isCancelled) msg = `ATTENZIONE: L'incarico sulla barca ${boatName} del ${newAssignment.date} è stato ANNULLATO.`;
+            if (isRestored) msg = `L'incarico sulla barca ${boatName} del ${newAssignment.date} è stato ripristinato.`;
+            if (isDateChanged) msg = `L'incarico sulla barca ${boatName} è stato spostato dal ${oldAssignment.date} al ${newAssignment.date}.`;
+
+            notifsToCreate.push({
+              user_id: newUserId,
+              type: NotificationType.ASSIGNMENT_UPDATE,
+              ref_key: `ASSIGNMENT_MODIFIED:${newAssignment.id}:${newUserId}:${Date.now()}`,
+              message: msg,
+              read: false,
+              data: { assignmentId: newAssignment.id },
+              created_at: nowIso,
+            });
+          }
+        };
+
+        checkChangeNotif(oldAssignment.instructorId, instructorId, oldAssignment.instructorStatus, "COMANDANTE");
+        checkChangeNotif(oldAssignment.helperId, helperId, oldAssignment.helperStatus, "AIUTANTE");
+      }
+
       if (notifsToCreate.length) {
         // Evitiamo upsert per problemi di policy RLS (update_own non fa aggiornare notifiche altrui).
         // Controlliamo prima quali notifiche esistono già per non avere errori di unique constraint.
@@ -1309,6 +1356,9 @@ const App: React.FC = () => {
   const handleDeleteAssignment = async (id: string) => {
     if (!confirm("Sei sicuro di voler eliminare definitivamente questa missione?")) return;
 
+    // Salva una copia prima di rimuovere per le notifiche
+    const assignmentToDelete = assignments.find((a) => a.id === id);
+
     setAssignments((prev) => prev.filter((a) => a.id !== id));
     setNotificationToast({ message: "Missione eliminata dal registro.", type: "error" });
 
@@ -1317,6 +1367,50 @@ const App: React.FC = () => {
     if (error) {
       console.error("[DELETE assignments] error:", error, { id });
       setNotificationToast({ message: "Errore eliminazione missione (DB).", type: "error" });
+      return;
+    }
+
+    if (assignmentToDelete) {
+      try {
+        const notifsToCreate: any[] = [];
+        const nowIso = new Date().toISOString();
+        const boatName = boats.find(b => b.id === assignmentToDelete.boatId)?.name || 'Barca';
+
+        const addCancelNotif = (userId: string, roleLabel: string) => {
+          notifsToCreate.push({
+            user_id: userId,
+            type: NotificationType.ASSIGNMENT_CANCELLED,
+            ref_key: `ASSIGNMENT_DELETED:${id}:${userId}:${Date.now()}`,
+            message: `L'incarico come ${roleLabel} sulla barca ${boatName} del ${assignmentToDelete.date} è stato cancellato definitivamente.`,
+            read: false,
+            data: { assignmentId: id },
+            created_at: nowIso,
+          });
+        };
+
+        if (assignmentToDelete.instructorId && assignmentToDelete.instructorStatus === "CONFIRMED") {
+          addCancelNotif(assignmentToDelete.instructorId, "COMANDANTE");
+        }
+        if (assignmentToDelete.helperId && assignmentToDelete.helperStatus === "CONFIRMED") {
+          addCancelNotif(assignmentToDelete.helperId, "AIUTANTE");
+        }
+
+        if (notifsToCreate.length > 0) {
+          const { error: nErr } = await supabase.from("notifications").insert(notifsToCreate);
+          if (!nErr) {
+            Promise.allSettled(notifsToCreate.map(async (notif) => {
+              const u = users.find(x => x.id === notif.user_id);
+              if (u?.email) {
+                await sendNotificationEmail({
+                  to: u.email,
+                  subject: `Avui Notifica - Incarico Cancellato`,
+                  html: `<p>Ciao ${u.name},</p><p>${notif.message}</p>`
+                });
+              }
+            })).catch(e => console.error("Email send error", e));
+          }
+        }
+      } catch (e) { console.error(e); }
     }
   };
 
@@ -2660,6 +2754,7 @@ const App: React.FC = () => {
             <div className="flex-1 bg-white xl:bg-transparent rounded-xl xl:rounded-none">
               {calendarView === "table" ? (
                 <TableView
+                  currentUser={currentUser}
                   users={users}
                   availabilities={availabilities}
                   assignments={assignments}

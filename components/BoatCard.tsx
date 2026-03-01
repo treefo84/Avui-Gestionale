@@ -128,8 +128,10 @@ export const BoatCard: React.FC<BoatCardProps> = ({
                     <div
                         className="cursor-pointer group"
                         onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenBoatPage(boat.id);
+                            if (isInstructor) {
+                                e.stopPropagation();
+                                onOpenBoatPage(boat.id);
+                            }
                         }}
                     >
                         <h3 className="font-bold text-slate-800 leading-tight group-hover:underline">{boat.name}</h3>

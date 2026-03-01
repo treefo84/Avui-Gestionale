@@ -20,6 +20,7 @@ import {
 } from '../types';
 
 interface TableViewProps {
+    currentUser: User | null;
     users: User[];
     availabilities: Availability[];
     assignments: Assignment[];
@@ -31,6 +32,7 @@ interface TableViewProps {
 }
 
 export const TableView: React.FC<TableViewProps> = ({
+    currentUser,
     users,
     availabilities,
     assignments,
@@ -170,7 +172,14 @@ export const TableView: React.FC<TableViewProps> = ({
                                         return (
                                             <td key={dateStr} className="p-1 border border-slate-200 align-top">
                                                 <div
-                                                    onClick={() => onOpenBoatPage(assignment.boatId)}
+                                                    onClick={() => {
+                                                        const isCurrentUserInstructorOrAdmin = currentUser?.role === 'ISTRUTTORE' || currentUser?.isAdmin;
+                                                        if (isCurrentUserInstructorOrAdmin) {
+                                                            onOpenBoatPage(assignment.boatId);
+                                                        } else {
+                                                            onDateClick(dateStr);
+                                                        }
+                                                    }}
                                                     className={`p-1.5 rounded text-xs font-medium cursor-pointer border hover:shadow-sm transition-shadow ${isWarning
                                                         ? 'bg-amber-100 text-amber-800 border-amber-300'
                                                         : 'bg-teal-100 text-teal-800 border-teal-300'
