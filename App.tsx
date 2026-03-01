@@ -1513,19 +1513,15 @@ const App: React.FC = () => {
       })
     );
 
-    // 2) DB: aggiorno la colonna giusta su assignments
-    const patch =
-      role === "INSTRUCTOR"
-        ? { instructor_status: newStatus }
-        : { helper_status: newStatus };
-
-    const { error: rpcErr } = await supabase.rpc("respond_assignment", {
+    // 2) DB: aggiorno la colonna giusta usando RPC per bypassare RLS per gli account non 'privilegiati'
+    const { error: dbErr } = await supabase.rpc("update_assignment_status", {
       p_assignment_id: assignmentId,
-      p_status: accepted ? "CONFIRMED" : "REJECTED",
+      p_role: role,
+      p_status: newStatus
     });
 
-    if (rpcErr) {
-      console.error("[ASSIGNMENT][RPC] error:", rpcErr);
+    if (dbErr) {
+      console.error("[ASSIGNMENT][RPC] error:", dbErr);
       setNotificationToast({
         message: "Errore nel confermare/rifiutare l’incarico.",
         type: "error",
