@@ -234,6 +234,7 @@ const App: React.FC = () => {
   const [dayNotes, setDayNotes] = useState<DayNote[]>([]);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState<MaintenanceRecord[]>([]);
+  const [globalSettings, setGlobalSettings] = useState<any>(null);
 
   // Meteo
   const [weatherData, setWeatherData] = useState<WeatherDataParsed | null>(null);
@@ -685,6 +686,17 @@ const App: React.FC = () => {
     let cancelled = false;
 
     (async () => {
+      // GLOBAL SETTINGS
+      const { data: settingsData, error: settingsErr } = await supabase
+        .from("global_settings")
+        .select("*")
+        .eq("id", 1)
+        .maybeSingle();
+
+      if (!cancelled && !settingsErr && settingsData) {
+        setGlobalSettings(settingsData);
+      }
+
       // BOATS
       const { data: boatsData, error: boatsErr } = await supabase
         .from("boats")
@@ -2662,6 +2674,23 @@ const App: React.FC = () => {
   const myNotifications = notifications; // già filtrate dal DB per user_id
   const unreadCount = myNotifications.reduce((acc, n) => acc + (n.read ? 0 : 1), 0);
 
+  const handleToggleWeekView = async () => {
+    const newVal = !(globalSettings?.enable_week_view);
+    const { error } = await supabase
+      .from("global_settings")
+      .update({ enable_week_view: newVal })
+      .eq("id", 1);
+    if (!error) {
+      setGlobalSettings((prev: any) => prev ? { ...prev, enable_week_view: newVal } : { id: 1, enable_week_view: newVal });
+      if (!newVal && calendarView === "week") {
+        setCalendarView("month");
+      }
+    } else {
+      console.error("Errore aggiornamento globale:", error);
+      setNotificationToast({ message: "Errore durante l'aggiornamento dell'impostazione.", type: "error" });
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 relative">
@@ -2745,6 +2774,7 @@ const App: React.FC = () => {
               onToday={() => setCurrentDate(new Date())}
               onNext={() => navigateCalendar("next")}
               onSetView={(v) => setCalendarView(v)}
+              enableWeekView={globalSettings?.enable_week_view ?? false}
             />
 
             <div className="flex-1 bg-white xl:bg-transparent rounded-xl xl:rounded-none">
@@ -2858,6 +2888,8 @@ const App: React.FC = () => {
         selectedBoatIdForPage={selectedBoatIdForPage}
         setSelectedBoatIdForPage={setSelectedBoatIdForPage}
         onOpenBoatPage={(id) => setSelectedBoatIdForPage(id)}
+        globalSettings={globalSettings}
+        onToggleWeekView={handleToggleWeekView}
       />
 
     </div>

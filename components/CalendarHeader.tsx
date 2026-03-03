@@ -10,6 +10,7 @@ type Props = {
   onToday: () => void;
   onNext: () => void;
   onSetView: (v: "month" | "week" | "table") => void;
+  enableWeekView?: boolean;
 };
 
 export const CalendarHeader = React.memo(function CalendarHeader({
@@ -19,11 +20,12 @@ export const CalendarHeader = React.memo(function CalendarHeader({
   onToday,
   onNext,
   onSetView,
+  enableWeekView
 }: Props) {
   return (
-    <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
-      <div className="flex items-center gap-4">
-        <h2 className="text-3xl font-bold text-slate-800 capitalize min-w-[200px]">
+    <div className="flex flex-col md:flex-row items-center justify-between mb-6 md:mb-8 gap-4 w-full">
+      <div className="flex items-center justify-between w-full md:w-auto gap-2 md:gap-4">
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-slate-800 capitalize truncate md:min-w-[200px] flex-1">
           {calendarView === "month"
             ? format(currentDate, "MMMM yyyy", { locale: it })
             : calendarView === "week"
@@ -32,24 +34,24 @@ export const CalendarHeader = React.memo(function CalendarHeader({
         </h2>
 
         {calendarView !== "table" && (
-          <div className="flex gap-2">
+          <div className="flex gap-1 sm:gap-2 shrink-0">
             <button
               onClick={onPrev}
-              className="p-2 hover:bg-white hover:shadow rounded-lg transition-all border border-transparent hover:border-slate-200"
+              className="p-1.5 sm:p-2 hover:bg-white hover:shadow rounded-lg transition-all border border-transparent hover:border-slate-200"
             >
               <ChevronLeft size={20} />
             </button>
 
             <button
               onClick={onToday}
-              className="px-4 py-2 text-sm font-medium hover:bg-white hover:shadow rounded-lg transition-all border border-transparent hover:border-slate-200 text-slate-600"
+              className="px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium hover:bg-white hover:shadow rounded-lg transition-all border border-transparent hover:border-slate-200 text-slate-600 shrink-0"
             >
               Oggi
             </button>
 
             <button
               onClick={onNext}
-              className="p-2 hover:bg-white hover:shadow rounded-lg transition-all border border-transparent hover:border-slate-200"
+              className="p-1.5 sm:p-2 hover:bg-white hover:shadow rounded-lg transition-all border border-transparent hover:border-slate-200"
             >
               <ChevronRight size={20} />
             </button>
@@ -57,26 +59,28 @@ export const CalendarHeader = React.memo(function CalendarHeader({
         )}
       </div>
 
-      <div className="flex bg-slate-200 p-1 rounded-lg">
+      <div className="flex bg-slate-200 p-1 rounded-lg w-full md:w-auto justify-center md:justify-start overflow-x-auto hide-scrollbar">
         <button
           onClick={() => onSetView("month")}
-          className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${calendarView === "month" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+          className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap ${calendarView === "month" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
             }`}
         >
           <CalendarDays size={16} /> Mese
         </button>
 
-        <button
-          onClick={() => onSetView("week")}
-          className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${calendarView === "week" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            }`}
-        >
-          <CalendarRange size={16} /> Settimana
-        </button>
+        {enableWeekView && (
+          <button
+            onClick={() => onSetView("week")}
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap ${calendarView === "week" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}
+          >
+            <CalendarRange size={16} /> Settimana
+          </button>
+        )}
 
         <button
           onClick={() => onSetView("table")}
-          className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${calendarView === "table" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+          className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap ${calendarView === "table" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
             }`}
         >
           <List size={16} /> Tabella

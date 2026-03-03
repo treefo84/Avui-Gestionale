@@ -150,6 +150,11 @@ export interface MaintenanceRecord {
   notes?: string;
 }
 
+export interface GlobalSettings {
+  id: number;
+  enable_week_view: boolean;
+}
+
 export interface AppState {
   currentUser: User;
   availabilities: Availability[];
@@ -157,6 +162,7 @@ export interface AppState {
   generalEvents: GeneralEvent[];
   dayNotes: DayNote[];
   maintenanceRecords: MaintenanceRecord[];
+  globalSettings?: GlobalSettings;
 }
 
 // --- Supabase: public.calendar_events ---

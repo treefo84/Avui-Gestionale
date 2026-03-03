@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Activity, Assignment, AssignmentStatus, Boat, Role, User } from '../types';
-import { X, Lock, Save, Calendar, Ship, MapPin, Mail, Scroll, Link as LinkIcon, Check, Loader2, Ban, Phone, Cake, Upload } from 'lucide-react';
+import { X, Lock, Save, Calendar, Ship, MapPin, Mail, Scroll, Link as LinkIcon, Check, Loader2, Ban, Phone, Cake, Upload, Settings } from 'lucide-react';
 import { format, isFuture } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { supabase } from '../supabaseClient';
@@ -14,6 +14,8 @@ interface ProfilePageProps {
     activities: Activity[];
     onClose: () => void;
     onUpdateUser: (field: keyof User, value: any) => void;
+    globalSettings?: any;
+    onToggleWeekView?: () => void;
 }
 
 // Stili disponibili su DiceBear che si adattano al contesto
@@ -32,7 +34,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     boats,
     activities,
     onClose,
-    onUpdateUser
+    onUpdateUser,
+    globalSettings,
+    onToggleWeekView
 }) => {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -261,6 +265,34 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                             </p>
                         )}
                     </div>
+
+                    {/* System Settings (Admin Only) */}
+                    {user.isAdmin && (
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <Settings size={20} className="text-purple-500" /> Impostazioni Sistema
+                            </h3>
+                            <div className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                                        <Calendar size={20} className="text-blue-500" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-sm text-slate-800">Vista Settimana Globale</h4>
+                                        <p className="text-xs text-slate-500">Abilita la vista settimana del calendario per tutti</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={onToggleWeekView}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${globalSettings?.enable_week_view ? 'bg-blue-600' : 'bg-slate-200'}`}
+                                >
+                                    <span
+                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${globalSettings?.enable_week_view ? 'translate-x-6' : 'translate-x-1'}`}
+                                    />
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Security */}
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">

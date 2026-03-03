@@ -81,6 +81,10 @@ type Props = {
   selectedBoatIdForPage: string | null;
   setSelectedBoatIdForPage: (id: string | null) => void;
   onOpenBoatPage: (id: string) => void;
+
+  // --- Global Settings ---
+  globalSettings?: any;
+  onToggleWeekView?: () => void;
 };
 
 export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(props) {
@@ -128,7 +132,9 @@ export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(prop
     onUpdateProfile,
     selectedBoatIdForPage,
     setSelectedBoatIdForPage,
-    onOpenBoatPage
+    onOpenBoatPage,
+    globalSettings,
+    onToggleWeekView
   } = props;
 
   return (
@@ -191,6 +197,8 @@ export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(prop
           activities={activities}
           onClose={() => setIsProfileOpen(false)}
           onUpdateUser={onUpdateProfile as any}
+          globalSettings={globalSettings}
+          onToggleWeekView={onToggleWeekView}
         />
       )}
 

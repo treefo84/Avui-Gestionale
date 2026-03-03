@@ -420,12 +420,12 @@ export const DayModal: React.FC<DayModalProps> = ({
                     {/* Section 1: My Availability */}
                     <section>
                         <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Ci sei o ci fai?</h3>
-                        <div className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${myStatus === AvailabilityStatus.AVAILABLE ? 'bg-emerald-50 border-emerald-100' :
+                        <div className={`flex flex-col sm:flex-row items-center sm:items-start gap-4 p-4 rounded-xl border transition-colors ${myStatus === AvailabilityStatus.AVAILABLE ? 'bg-emerald-50 border-emerald-100' :
                             myStatus === AvailabilityStatus.UNAVAILABLE ? 'bg-rose-50 border-rose-100' :
                                 'bg-slate-50 border-slate-100'
                             }`}>
-                            <img src={currentUser.avatar} alt={currentUser.name} className="w-12 h-12 rounded-full border-2 border-white shadow-sm" />
-                            <div className="flex-1">
+                            <img src={currentUser.avatar} alt={currentUser.name} className="w-16 h-16 sm:w-12 sm:h-12 rounded-full border-2 border-white shadow-sm" />
+                            <div className="flex-1 text-center sm:text-left">
                                 <p className="font-semibold text-slate-800">Ci sei questo giorno?</p>
                                 <p className="text-xs text-slate-500">
                                     {isWeekendDay
@@ -433,10 +433,10 @@ export const DayModal: React.FC<DayModalProps> = ({
                                         : "Se ti segni verde, ti tocca lavorare."}
                                 </p>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                                 <button
                                     onClick={() => handleAvailabilityClick(AvailabilityStatus.AVAILABLE)}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${myStatus === AvailabilityStatus.AVAILABLE
+                                    className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2 rounded-lg text-sm font-medium transition-all w-full sm:w-auto ${myStatus === AvailabilityStatus.AVAILABLE
                                         ? 'bg-emerald-600 text-white shadow-md'
                                         : 'bg-white text-slate-600 hover:bg-emerald-50 border'
                                         }`}
@@ -445,7 +445,7 @@ export const DayModal: React.FC<DayModalProps> = ({
                                 </button>
                                 <button
                                     onClick={() => handleAvailabilityClick(AvailabilityStatus.UNAVAILABLE)}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${myStatus === AvailabilityStatus.UNAVAILABLE
+                                    className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2 rounded-lg text-sm font-medium transition-all w-full sm:w-auto ${myStatus === AvailabilityStatus.UNAVAILABLE
                                         ? 'bg-rose-500 text-white shadow-md'
                                         : 'bg-white text-slate-600 hover:bg-rose-50 border'
                                         }`}
