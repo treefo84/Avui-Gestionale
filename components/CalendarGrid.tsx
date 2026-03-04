@@ -69,7 +69,7 @@ export function CalendarGrid({
       {["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"].map((day) => (
         <div
           key={day}
-          className="bg-slate-50 p-4 text-center font-semibold text-sm text-slate-400 uppercase tracking-wider"
+          className="bg-slate-50 py-1.5 px-0 sm:p-4 text-center font-bold sm:font-semibold text-[10px] sm:text-sm text-slate-400 uppercase tracking-tighter sm:tracking-wider overflow-hidden"
         >
           {day}
         </div>
@@ -77,7 +77,7 @@ export function CalendarGrid({
 
       {calendarView === "month" &&
         Array.from({ length: startDayPadding }).map((_, i) => (
-          <div key={`empty-${i}`} className="bg-white min-h-[160px]" />
+          <div key={`empty-${i}`} className="bg-white min-h-[100px] sm:min-h-[160px]" />
         ))}
 
       {daysToRender.map((day) => {

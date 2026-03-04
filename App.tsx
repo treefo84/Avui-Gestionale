@@ -247,7 +247,9 @@ const App: React.FC = () => {
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user && (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED')) {
-        // Se c'è un provider_token (ovvero l'utente ha fatto login/link con Google in questo esatto istante)
+        let dbUpdated = false;
+
+        // 1) Se abbiamo appena completato l'OAuth e Supabase ci restituisce i token freschi
         if (session.provider_token) {
           try {
             await supabase.from('users').update({
@@ -256,9 +258,31 @@ const App: React.FC = () => {
               google_calendar_connected: true
             }).eq('auth_id', session.user.id);
             console.log("Tokens Google salvati nel database.");
+            dbUpdated = true;
           } catch (err) {
             console.error("Errore nel salvataggio dei token Google:", err);
           }
+        } else {
+          // 2) Fallback: se l'identità esiste su Auth ma il DB era fuori sync (spesso capita ai reload parziali)
+          const isGoogleLinked = session.user.identities?.some(id => id.provider === 'google');
+          if (isGoogleLinked) {
+            try {
+              const { data: uData } = await supabase.from('users').select('google_calendar_connected').eq('auth_id', session.user.id).single();
+              if (uData && !uData.google_calendar_connected) {
+                await supabase.from('users').update({ google_calendar_connected: true }).eq('auth_id', session.user.id);
+                console.log("Flag Google Sync allineato tramite fallback.");
+                dbUpdated = true;
+              }
+            } catch (e) { }
+          }
+        }
+
+        // 3) Se il DB è stato appena modificato qui in background, forza l'aggiornamento dello store locale
+        // altrimenti la UI del profilo rimarrebbe ferma su "Connetti" finché l'utente non ricarica la pagina!
+        if (dbUpdated) {
+          setUsers(prev => prev.map(u =>
+            u.id === session.user.id ? { ...u, googleCalendarConnected: true } : u
+          ));
         }
       }
     });
@@ -278,6 +302,31 @@ const App: React.FC = () => {
         location.reload();
       }
     })();
+  }, []);
+
+  // Check for OAuth errors in URL
+  useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.replace('#', '?'));
+    const searchParams = new URLSearchParams(window.location.search);
+
+    const errDesc = hashParams.get('error_description') || searchParams.get('error_description');
+
+    if (errDesc) {
+      const decodedErr = decodeURIComponent(errDesc).replace(/\+/g, ' ');
+      let userFriendlyErr = decodedErr;
+
+      if (decodedErr.includes('Identity is already linked')) {
+        userFriendlyErr = "Questo account Google è già collegato ad un altro profilo. Disconnettilo da lì prima di procedere.";
+      }
+
+      setNotificationToast({
+        message: "Errore Collegamento: " + userFriendlyErr,
+        type: "error"
+      });
+
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
 
 
@@ -372,22 +421,29 @@ const App: React.FC = () => {
 
 
   useEffect(() => {
-    const uid = session?.user?.id ?? null;
-    const mail = session?.user?.email ?? null;
-
-    if (!uid) {
-      setDbUser(null);
-      return;
-    }
-
     let cancelled = false;
 
     (async () => {
+      // Aspettiamo che la sessione sia veramente pronta se isLoggedIn è true
+      let finalUid = session?.user?.id;
+      let finalEmail = session?.user?.email;
+
+      if (!finalUid && isLoggedIn) {
+        const { data: { session: sData } } = await supabase.auth.getSession();
+        finalUid = sData?.user?.id;
+        finalEmail = sData?.user?.email;
+      }
+
+      if (!finalUid) {
+        if (!cancelled) setDbUser(null);
+        return;
+      }
+
       // 1) prova a leggere SEMPRE dal DB (così vedi subito role/is_admin aggiornati)
       const { data: existing, error: selErr } = await supabase
         .from("users")
         .select("*")
-        .eq("auth_id", uid)
+        .eq("auth_id", finalUid)
         .maybeSingle();
 
       if (cancelled) return;
@@ -402,11 +458,8 @@ const App: React.FC = () => {
         return;
       }
 
-
-
       // 2) se non esiste, crealo con default sensati
-      const payload = { auth_id: uid, email: mail, role: "HELPER", is_admin: false };
-
+      const payload = { auth_id: finalUid, email: finalEmail, role: "HELPER", is_admin: false };
 
       const { data: created, error: insErr } = await supabase
         .from("users")
@@ -427,7 +480,7 @@ const App: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [session?.user?.id, session?.user?.email]);
+  }, [session?.user?.id, session?.user?.email, isLoggedIn]);
 
   useEffect(() => {
     if (!DEV) return;
@@ -907,7 +960,7 @@ const App: React.FC = () => {
     checkNextMonthAvailability();
     checkMaintenanceExpirations();
     checkForBirthdays();
-    ensureMaintenanceExpiringNotifications
+    ensureMaintenanceExpiringNotifications();
   }, [isLoggedIn, currentUser?.id, currentUser?.role, boats.length, maintenanceRecords.length, availabilities.length, users.length]);
 
   // --- ACTIONS ---
@@ -2489,19 +2542,8 @@ const App: React.FC = () => {
     return eachDayOfInterval({ start, end });
   }, [currentDate, calendarView]);
 
-  // 9) MouseMove throttling via requestAnimationFrame
-  const rafRef = useRef<number | null>(null);
-  const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-
   const handleMouseMove = React.useCallback((e: React.MouseEvent) => {
-    lastMouseRef.current = { x: e.clientX, y: e.clientY };
-
-    if (rafRef.current != null) return;
-
-    rafRef.current = requestAnimationFrame(() => {
-      rafRef.current = null;
-      setMousePos(lastMouseRef.current);
-    });
+    setMousePos({ x: e.clientX, y: e.clientY });
   }, []);
 
   const handleDayClick = React.useCallback((dateStr: string) => {
@@ -2518,12 +2560,6 @@ const App: React.FC = () => {
 
   const handleDayLeave = React.useCallback(() => {
     setHoveredDate(null);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    };
   }, []);
 
   // 10) Assignments indicizzati per barca (performance + match più affidabile)
@@ -2603,11 +2639,19 @@ const App: React.FC = () => {
   }
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Caricamento...</div>;
+    return <div className="min-h-screen flex items-center justify-center">Caricamento Auth...</div>;
   }
 
-  if (isLoggedIn && !sessionUser) {
-    return <div className="min-h-screen flex items-center justify-center">Sto preparando il profilo…</div>;
+  // Se è appena scattato il login ma la sessione non ha ancora l'id utente, o stiamo leggendo il DB
+  if (isLoggedIn && (!sessionUser || !dbUser) && appReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">
+        <div className="text-center">
+          <Ship size={48} className="mx-auto text-blue-400 animate-pulse mb-4" />
+          <p>Sto preparando il profilo...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!isLoggedIn) {
@@ -2762,11 +2806,11 @@ const App: React.FC = () => {
         />
       )}
 
-      <main className="flex-1 p-6 pb-20 gap-6 w-full max-w-[1400px] mx-auto flex flex-col">
+      <main className="flex-1 p-2 sm:p-4 md:p-6 pb-20 gap-4 md:gap-6 w-full max-w-[1400px] mx-auto flex flex-col">
         {/* Top Section: Calendar + Sidebar */}
-        <div className="flex flex-col xl:flex-row gap-6 w-full">
+        <div className="flex flex-col xl:flex-row gap-4 md:gap-6 w-full">
           {/* Calendar Section */}
-          <div className="flex-1 min-w-0 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col p-6">
+          <div className="flex-1 min-w-0 bg-white md:rounded-xl shadow-sm border-y md:border border-slate-200 overflow-hidden flex flex-col p-3 sm:p-4 md:p-6 -mx-2 sm:mx-0">
             <CalendarHeader
               currentDate={currentDate}
               calendarView={calendarView}
@@ -2958,11 +3002,11 @@ const DayCell = React.memo(function DayCell(props: DayCellProps) {
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onMouseMove={onMouseMove}
-      className={`${bgClass} min-h-[160px] p-2 transition-all cursor-pointer group flex flex-col relative`}
+      className={`${bgClass} min-h-[100px] sm:min-h-[160px] p-1 sm:p-2 transition-all cursor-pointer group flex flex-col relative`}
     >
-      <div className="flex justify-between items-start mb-2">
+      <div className="flex flex-col lg:flex-row justify-between lg:items-start mb-1 sm:mb-2 gap-1 lg:gap-0">
         <span
-          className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full transition-colors ${isToday
+          className={`text-xs sm:text-sm font-semibold w-5 h-5 sm:w-7 sm:h-7 flex justify-center items-center rounded-full transition-colors shrink-0 mx-auto lg:mx-0 ${isToday
             ? "bg-blue-600 text-white shadow-md"
             : isWeekendDay
               ? "text-slate-800"
@@ -2974,28 +3018,28 @@ const DayCell = React.memo(function DayCell(props: DayCellProps) {
 
         {/* Meteo Icon */}
         {dayWeather && (
-          <div className="flex gap-1 ml-1 mt-0.5 text-[9px] font-bold text-slate-500 bg-white/60 px-1 py-0.5 rounded shadow-sm border border-slate-100" title={`Max: ${dayWeather.temp}°C, Vento Max: ${dayWeather.wind} nodi`}>
+          <div className="hidden md:flex gap-1 lg:ml-1 mt-0.5 text-[9px] font-bold text-slate-500 bg-white/60 px-1 py-0.5 rounded shadow-sm border border-slate-100 justify-center" title={`Max: ${dayWeather.temp}°C, Vento Max: ${dayWeather.wind} nodi`}>
             <span>{dayWeather.emoji}</span>
-            <span className="text-sky-700">{dayWeather.wind} kt</span>
+            <span className="text-sky-700 truncate">{dayWeather.wind} kt</span>
           </div>
         )}
 
-        <div className="flex-1"></div>
+        <div className="flex-1 hidden lg:block"></div>
 
         {/* Riepilogo Disponibilità */}
       </div>
 
-      <div className="flex flex-col gap-1 flex-1">
+      <div className="flex flex-col gap-1 flex-1 overflow-hidden">
         {notesCount > 0 && (
-          <div className="h-4 bg-amber-100 border border-amber-200 text-amber-600 rounded px-2 text-[9px] font-bold flex items-center gap-1 mb-1 shadow-sm">
-            <MessageCircle size={8} />
+          <div className="h-4 bg-amber-100 border border-amber-200 text-amber-600 rounded px-1 sm:px-2 text-[8px] sm:text-[9px] font-bold flex items-center gap-1 mb-1 shadow-sm shrink-0">
+            <MessageCircle size={8} className="shrink-0" />
             <span className="truncate">{notesCount} Note</span>
           </div>
         )}
 
         {dayCalendarEvents.length > 0 && (
           <div
-            className="h-5 text-[10px] px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 bg-indigo-600 text-white font-bold"
+            className="h-4 sm:h-5 text-[9px] sm:text-[10px] px-1 sm:px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 bg-indigo-600 text-white font-bold shrink-0"
             title={dayCalendarEvents
               .map((ev) => {
                 const boatName = boatsById.get(ev.boatId)?.name ?? "Barca";
@@ -3020,7 +3064,7 @@ const DayCell = React.memo(function DayCell(props: DayCellProps) {
           return (
             <div
               key={event.id}
-              className="h-5 text-[10px] px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 bg-purple-500 text-white font-bold"
+              className="h-4 sm:h-5 text-[9px] sm:text-[10px] px-1 sm:px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 bg-purple-500 text-white font-bold shrink-0"
             >
               <PartyPopper size={10} className="mr-1" />
               <span className="truncate">{act?.name}</span>
@@ -3036,7 +3080,7 @@ const DayCell = React.memo(function DayCell(props: DayCellProps) {
           return (
             <div
               key={record.id}
-              className={`h-5 text-[10px] px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 border ${isExpired
+              className={`h-4 sm:h-5 text-[9px] sm:text-[10px] px-1 sm:px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 border shrink-0 ${isExpired
                 ? "bg-red-100 text-red-700 border-red-200"
                 : "bg-amber-100 text-amber-700 border-amber-200"
                 }`}
@@ -3052,7 +3096,7 @@ const DayCell = React.memo(function DayCell(props: DayCellProps) {
           return (
             <div
               key={record.id}
-              className="h-5 text-[10px] px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 border bg-blue-100 text-blue-700 border-blue-200"
+              className="h-4 sm:h-5 text-[9px] sm:text-[10px] px-1 sm:px-2 flex items-center rounded overflow-hidden whitespace-nowrap mb-0.5 border bg-blue-100 text-blue-700 border-blue-200 shrink-0"
             >
               <CheckCircle size={10} className="mr-1 shrink-0" />
               <span
@@ -3081,7 +3125,7 @@ const DayCell = React.memo(function DayCell(props: DayCellProps) {
           return (
             <div
               key={`${boat.id}-${assignment.id}`}
-              className={`h-6 text-[10px] px-2 flex items-center overflow-hidden whitespace-nowrap ${barColor} rounded-md mx-1 transition-opacity hover:opacity-90`}
+              className={`h-5 sm:h-6 text-[9px] sm:text-[10px] px-1 sm:px-2 flex items-center overflow-hidden whitespace-nowrap ${barColor} rounded-md mx-0 sm:mx-1 transition-opacity hover:opacity-90 shrink-0`}
               title={label}
             >
               <span className="truncate">{label}</span>

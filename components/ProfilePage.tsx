@@ -122,6 +122,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 // Disconnesso con successo
                 onUpdateUser('googleCalendarConnected', false);
             } else {
+                // Pre-check: se esiste già un'identità Google appesa (magari flag DB disallineato), rimuovila prima di rilinkarla
+                const { data: { identities } } = await supabase.auth.getUserIdentities();
+                if (identities) {
+                    const existingGoogle = identities.find(id => id.provider === 'google');
+                    if (existingGoogle) {
+                        await supabase.auth.unlinkIdentity(existingGoogle);
+                    }
+                }
+
                 // Avvia il flow OAuth2 per collegare Google
                 const { error } = await supabase.auth.linkIdentity({
                     provider: 'google',

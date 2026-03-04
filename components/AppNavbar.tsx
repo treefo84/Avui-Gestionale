@@ -70,8 +70,8 @@ export function AppNavbar({
   const unread = myNotifications.filter((n) => !n.read);
 
   return (
-    <nav className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm px-6 py-3 flex items-center justify-between">
-      <div className="flex items-center gap-3">
+    <nav className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm px-3 sm:px-6 py-3 flex items-center justify-between">
+      <div className="flex items-center gap-2 sm:gap-3">
         <div className="bg-blue-600 p-2 rounded-lg text-white">
           <Ship size={20} />
         </div>
