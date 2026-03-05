@@ -2060,6 +2060,17 @@ const App: React.FC = () => {
   const handleUpdateProfile = async (field: keyof User, value: any) => {
     if (!currentUser) return;
 
+    if (field === "password") {
+      const { error } = await supabase.auth.updateUser({ password: value });
+      if (error) {
+        console.error("[USERS][update_password] Auth error:", error);
+        setNotificationToast({ message: `Errore salvataggio password: ${error.message}`, type: "error" });
+      } else {
+        setNotificationToast({ message: "Password aggiornata con successo! ✅", type: "success" });
+      }
+      return;
+    }
+
     // UI subito
     setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? { ...u, [field]: value } : u)));
 

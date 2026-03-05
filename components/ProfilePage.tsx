@@ -44,6 +44,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     const [isConnectingCalendar, setIsConnectingCalendar] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
 
+    // Stato locale per i campi di testo per evitare salvataggi (e perdite di focus) ad ogni singola battuta
+    const [localEmail, setLocalEmail] = useState(user.email || '');
+    const [localPhone, setLocalPhone] = useState(user.phoneNumber || '');
+    const [localBirthDate, setLocalBirthDate] = useState(user.birthDate || '');
+
     const handlePasswordChange = (e: React.FormEvent) => {
         e.preventDefault();
         if (newPassword === confirmPassword && newPassword.length > 0) {
@@ -208,8 +213,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                                     <Mail size={16} className="absolute left-3 top-2.5 text-slate-400" />
                                     <input
                                         type="email"
-                                        value={user.email || ''}
-                                        onChange={(e) => onUpdateUser('email', e.target.value)}
+                                        value={localEmail}
+                                        onChange={(e) => setLocalEmail(e.target.value)}
+                                        onBlur={(e) => {
+                                            if (localEmail !== user.email) onUpdateUser('email', localEmail);
+                                        }}
                                         className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-900"
                                     />
                                 </div>
@@ -220,8 +228,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                                     <Phone size={16} className="absolute left-3 top-2.5 text-slate-400" />
                                     <input
                                         type="tel"
-                                        value={user.phoneNumber || ''}
-                                        onChange={(e) => onUpdateUser('phoneNumber', e.target.value)}
+                                        value={localPhone}
+                                        onChange={(e) => setLocalPhone(e.target.value)}
+                                        onBlur={(e) => {
+                                            if (localPhone !== user.phoneNumber) onUpdateUser('phoneNumber', localPhone);
+                                        }}
                                         className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-900"
                                     />
                                 </div>
@@ -232,8 +243,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                                     <Cake size={16} className="absolute left-3 top-2.5 text-slate-400" />
                                     <input
                                         type="date"
-                                        value={user.birthDate || ''}
-                                        onChange={(e) => onUpdateUser('birthDate', e.target.value)}
+                                        value={localBirthDate}
+                                        onChange={(e) => setLocalBirthDate(e.target.value)}
+                                        onBlur={(e) => {
+                                            if (localBirthDate !== user.birthDate) onUpdateUser('birthDate', localBirthDate);
+                                        }}
                                         style={{ colorScheme: 'light' }}
                                         className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-900"
                                     />
