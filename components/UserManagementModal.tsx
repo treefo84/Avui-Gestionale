@@ -549,8 +549,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                               {user.id === currentUserId && <span className="text-xs text-blue-500">(Tu)</span>}
                             </h4>
 
-                            <div className="flex flex-col">
-                              <p className="text-xs text-slate-500 truncate max-w-[200px]">{user.username}</p>
+                            <div className="flex flex-col mt-0.5">
                               <div className="flex gap-2">
                                 {user.email && (
                                   <p className="text-[10px] text-slate-400 truncate flex items-center gap-0.5">

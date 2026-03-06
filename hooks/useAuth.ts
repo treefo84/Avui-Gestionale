@@ -40,7 +40,7 @@ export function useAuth() {
         setSessionKilled(true);
         setLoading(false);
       }
-    }, 2000);
+    }, 8000);
 
     // listener auth
     const {

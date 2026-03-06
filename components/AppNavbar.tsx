@@ -100,10 +100,9 @@ export function AppNavbar({
           {isNotificationOpen && (
             <div
               ref={notificationPanelRef}
-              className="absolute right-0 top-full mt-2 w-[calc(100vw-32px)] sm:w-96
-                         bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden
-                         z-[9999] origin-top-right
-                         -mr-10 sm:mr-0 max-w-[400px]"
+              className="fixed sm:absolute left-4 right-4 sm:left-auto sm:right-0 top-16 sm:top-full sm:mt-2 
+                         sm:w-96 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden
+                         z-[9999] origin-top sm:origin-top-right flex flex-col max-h-[85vh] sm:max-w-[400px]"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-3 border-b border-slate-100 font-bold text-slate-700">

@@ -113,8 +113,8 @@ export const TableView: React.FC<TableViewProps> = ({
                 </div>
             </div>
 
-            <div className="overflow-auto flex-1 p-4 relative custom-scrollbar">
-                <table className="w-full border-collapse min-w-max">
+            <div className="overflow-auto flex-1 relative custom-scrollbar">
+                <table className="w-full border-collapse min-w-max border-t-0">
                     <thead className="sticky top-0 z-20 bg-white shadow-sm">
                         <tr>
                             <th className="p-2 border border-slate-200 bg-slate-100 text-left sticky left-0 z-30 shadow-[1px_0_0_#e2e8f0]">
