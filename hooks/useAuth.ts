@@ -5,49 +5,48 @@ export function useAuth() {
   const [session, setSession] = useState<any>(null);
   const [authUser, setAuthUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [sessionKilled, setSessionKilled] = useState(false);
 
   useEffect(() => {
     let isSettled = false;
 
     // sessione iniziale
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (error) {
-        console.error("Error getting session:", error);
-      }
-      setSession(data?.session ?? null);
-      setAuthUser(data?.session?.user ?? null);
-    }).catch(err => {
-      console.error("Failed to get session:", err);
-    }).finally(() => {
-      isSettled = true;
-      setLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error getting session:", error);
+          if (error.message?.toLowerCase().includes("refresh token")) {
+             console.warn("Refresh token expired or invalid, cleaning up session.");
+             supabase.auth.signOut().catch(() => {});
+             localStorage.clear();
+             sessionStorage.clear();
+          }
+        }
+        setSession(data?.session ?? null);
+        setAuthUser(data?.session?.user ?? null);
+      })
+      .catch(err => {
+        console.error("Failed to get session:", err);
+      })
+      .finally(() => {
+        isSettled = true;
+        setLoading(false);
+      });
 
-    // Timeout di emergenza: in rari casi getSession si blocca infinitamente
+    // Timeout salvavita per evitare schermate bianche in caso di deadlock di Supabase
     const timeoutId = setTimeout(() => {
       if (!isSettled) {
-        console.warn("useAuth: getSession timeout, forcing app load and clearing cache");
-        
-        // Se il getSession si congela, è molto probabile che la sessione locale sia corrotta.
-        // Forziamo il logout per sbloccare l'utente in modo definitivo.
-        supabase.auth.signOut().catch(e => console.error("Timeout SignOut Error:", e));
-        localStorage.clear();
-        sessionStorage.clear();
-
-        setSession(null);
-        setAuthUser(null);
-        setSessionKilled(true);
+        console.warn("useAuth: getSession timeout, forcing app load");
+        isSettled = true;
         setLoading(false);
       }
-    }, 8000);
+    }, 4000);
 
     // listener auth
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession((prev) => sessionKilled ? null : session);
-      setAuthUser((prev) => sessionKilled ? null : (session?.user ?? null));
+      setSession(session);
+      setAuthUser(session?.user ?? null);
     });
 
     return () => {
@@ -57,9 +56,9 @@ export function useAuth() {
   }, []);
 
   return {
-    session: sessionKilled ? null : session,
-    authUser: sessionKilled ? null : authUser,
-    isLoggedIn: !sessionKilled && !!authUser,
+    session,
+    authUser,
+    isLoggedIn: !!authUser,
     loading,
   };
 }
