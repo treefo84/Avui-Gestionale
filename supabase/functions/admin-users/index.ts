@@ -145,6 +145,7 @@ if (action === "create_user") {
         is_admin: isAdmin,
         phone_number: phoneNumber,
         birth_date: birthDate,
+        username: body.username ? String(body.username).trim() : null,
       },
       { onConflict: "auth_id" }
     );
@@ -245,6 +246,7 @@ if (action === "update_user") {
   if (typeof body.phone_number === "string") patch.phone_number = body.phone_number.trim() || null;
   if (typeof body.birth_date === "string") patch.birth_date = body.birth_date.trim() || null;
   if (typeof body.avatar_url === "string") patch.avatar_url = body.avatar_url.trim() || null;
+  if (typeof body.username === "string") patch.username = body.username.trim() || null;
 
   // 1) aggiorna public.users (solo profilo)
   if (Object.keys(patch).length) {

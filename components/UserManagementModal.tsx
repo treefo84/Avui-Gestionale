@@ -94,6 +94,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   // EDITING STATE
   // =========================
   const [editName, setEditName] = useState("");
+  const [editUsername, setEditUsername] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editBirthDate, setEditBirthDate] = useState("");
@@ -145,6 +146,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   const handleEditClick = (user: User) => {
     setEditingUser(user);
     setEditName(user.name ?? "");
+    setEditUsername(user.username ?? "");
     setEditEmail(user.email ?? "");
     setEditPhone(user.phoneNumber ?? "");
     setEditBirthDate(user.birthDate ?? "");
@@ -163,6 +165,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
     // manda solo ciò che cambia davvero
     if (editName !== editingUser.name) updates.name = editName;
+    if (editUsername !== editingUser.username) updates.username = editUsername;
     if (editEmail !== editingUser.email) updates.email = editEmail;
     if (editPhone !== (editingUser.phoneNumber ?? "")) updates.phoneNumber = editPhone;
     if (editBirthDate !== (editingUser.birthDate ?? "")) updates.birthDate = editBirthDate;
@@ -279,6 +282,18 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     />
                   </div>
 
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Username (Bacheca)</label>
+                    <input
+                      type="text"
+                      value={editUsername}
+                      onChange={(e) => setEditUsername(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label>
                     <div className="relative">

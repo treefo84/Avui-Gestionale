@@ -45,6 +45,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     const [isUploading, setIsUploading] = useState(false);
 
     // Stato locale per i campi di testo per evitare salvataggi (e perdite di focus) ad ogni singola battuta
+    const [localUsername, setLocalUsername] = useState(user.username || '');
     const [localEmail, setLocalEmail] = useState(user.email || '');
     const [localPhone, setLocalPhone] = useState(user.phoneNumber || '');
     const [localBirthDate, setLocalBirthDate] = useState(user.birthDate || '');
@@ -204,8 +205,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         </h3>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Username</label>
-                                <input type="text" value={user.username} disabled className="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 text-slate-500 text-sm cursor-not-allowed" />
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Username (Bacheca)</label>
+                                <input
+                                    type="text"
+                                    value={localUsername}
+                                    onChange={(e) => setLocalUsername(e.target.value)}
+                                    onBlur={(e) => {
+                                        if (localUsername !== user.username && localUsername.trim() !== '') {
+                                            onUpdateUser('username', localUsername.trim());
+                                        }
+                                    }}
+                                    className="w-full pl-3 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-900"
+                                />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label>

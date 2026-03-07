@@ -1097,6 +1097,7 @@ const App: React.FC = () => {
       if (typeof updates.phoneNumber === "string") profilePayload.phone_number = updates.phoneNumber;
       if (typeof updates.birthDate === "string") profilePayload.birth_date = updates.birthDate;
       if (typeof updates.avatar === "string") profilePayload.avatar_url = updates.avatar;
+      if (typeof (updates as any).username === "string") profilePayload.username = (updates as any).username;
       if (typeof updates.isAdmin === "boolean") {
         const r = await callAdminUsersFn(token, {
           action: "set_admin",
