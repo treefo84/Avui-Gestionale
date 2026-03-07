@@ -491,33 +491,6 @@ const App: React.FC = () => {
 
 
 
-  useEffect(() => {
-    const uid = session?.user?.id ?? null;
-    if (!uid) return;
-
-    let cancelled = false;
-
-    (async () => {
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("auth_id", uid)
-        .maybeSingle();
-
-      if (cancelled) return;
-      if (error) {
-        console.error("[REFRESH dbUser] error:", error);
-        return;
-      }
-      if (data) setDbUser(data);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.user?.id, isLoggedIn]);
-
-
 
   // 2) dbUser -> users[] (interno)
 
@@ -2654,13 +2627,17 @@ const App: React.FC = () => {
     return <div className="min-h-screen flex items-center justify-center">Caricamento Auth...</div>;
   }
 
-  // Se è appena scattato il login ma la sessione non ha ancora l'id utente, o stiamo leggendo il DB
   if (isLoggedIn && (!sessionUser || !dbUser) && appReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">
         <div className="text-center">
           <Ship size={48} className="mx-auto text-blue-400 animate-pulse mb-4" />
           <p>Sto preparando il profilo...</p>
+          <div className="mt-4 text-xs font-mono text-left bg-slate-200 p-2 rounded inline-block">
+            <div>isLoggedIn: {String(isLoggedIn)}</div>
+            <div>sessionUser: {sessionUser ? "OK" : "NULL"}</div>
+            <div>dbUser: {dbUser ? "OK" : "NULL"}</div>
+          </div>
         </div>
       </div>
     );

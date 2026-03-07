@@ -35,11 +35,33 @@ export function useAuth() {
     // Timeout salvavita per evitare schermate bianche in caso di deadlock di Supabase
     const timeoutId = setTimeout(() => {
       if (!isSettled) {
-        console.warn("useAuth: getSession timeout, forcing app load");
-        isSettled = true;
-        setLoading(false);
+        console.warn("useAuth: getSession timeout, fixing lock and reloading...");
+        
+        let authObj = null;
+        let authKey = null;
+        
+        // Salviamo la sessione buona prima di piallare i locks rotti di Supabase
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+                authKey = key;
+                authObj = localStorage.getItem(key);
+                break;
+            }
+        }
+
+        localStorage.clear();
+        sessionStorage.clear();
+
+        if (authKey && authObj) {
+            localStorage.setItem(authKey, authObj);
+        }
+
+        // Dobbiamo ricaricare la pagina per uccidere la Promise `getSession` rimasta appesa in background,
+        // altrimenti anche le chiamate al DB (supabase.from(...)) si bloccheranno aspettando quel token fantasma!
+        window.location.reload();
       }
-    }, 4000);
+    }, 3000);
 
     // listener auth
     const {
