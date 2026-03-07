@@ -244,52 +244,47 @@ const App: React.FC = () => {
     return s.length ? s : null;
   };
 
+  // Sincronizza i token di Google nel database
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user && (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED')) {
-        let dbUpdated = false;
+    if (!sessionUser) return;
 
-        // 1) Se abbiamo appena completato l'OAuth e Supabase ci restituisce i token freschi
-        if (session.provider_token) {
-          try {
-            await supabase.from('users').update({
-              google_provider_token: session.provider_token,
-              google_refresh_token: session.provider_refresh_token,
-              google_calendar_connected: true
-            }).eq('auth_id', session.user.id);
-            console.log("Tokens Google salvati nel database.");
-            dbUpdated = true;
-          } catch (err) {
-            console.error("Errore nel salvataggio dei token Google:", err);
-          }
-        } else {
-          // 2) Fallback: se l'identità esiste su Auth ma il DB era fuori sync (spesso capita ai reload parziali)
-          const isGoogleLinked = session.user.identities?.some(id => id.provider === 'google');
-          if (isGoogleLinked) {
-            try {
-              const { data: uData } = await supabase.from('users').select('google_calendar_connected').eq('auth_id', session.user.id).single();
-              if (uData && !uData.google_calendar_connected) {
-                await supabase.from('users').update({ google_calendar_connected: true }).eq('auth_id', session.user.id);
-                console.log("Flag Google Sync allineato tramite fallback.");
-                dbUpdated = true;
-              }
-            } catch (e) { }
-          }
-        }
+    // Controlliamo se abbiamo provider_token (dopo login OAuth)
+    if (session?.provider_token) {
+      (async () => {
+        try {
+          await supabase.from('users').update({
+            google_provider_token: session.provider_token,
+            google_refresh_token: session.provider_refresh_token,
+            google_calendar_connected: true
+          }).eq('auth_id', sessionUser.id);
+          console.log("Tokens Google salvati nel database.");
 
-        // 3) Se il DB è stato appena modificato qui in background, forza l'aggiornamento dello store locale
-        // altrimenti la UI del profilo rimarrebbe ferma su "Connetti" finché l'utente non ricarica la pagina!
-        if (dbUpdated) {
           setUsers(prev => prev.map(u =>
-            u.id === session.user.id ? { ...u, googleCalendarConnected: true } : u
+            u.id === sessionUser.id ? { ...u, googleCalendarConnected: true } : u
           ));
+        } catch (err) {
+          console.error("Errore nel salvataggio dei token Google:", err);
         }
+      })();
+    } else {
+      // Fallback: controlliamo se l'identità esiste su Auth ma il DB era fuori sync
+      const isGoogleLinked = sessionUser.identities?.some(id => id.provider === 'google');
+      if (isGoogleLinked) {
+        (async () => {
+          try {
+            const { data: uData } = await supabase.from('users').select('google_calendar_connected').eq('auth_id', sessionUser.id).single();
+            if (uData && !uData.google_calendar_connected) {
+              await supabase.from('users').update({ google_calendar_connected: true }).eq('auth_id', sessionUser.id);
+              console.log("Flag Google Sync allineato tramite fallback.");
+              setUsers(prev => prev.map(u =>
+                u.id === sessionUser.id ? { ...u, googleCalendarConnected: true } : u
+              ));
+            }
+          } catch (e) { }
+        })();
       }
-    });
-
-    // Se trovi errori di refresh token, ti conviene forzare signOut (vedi sotto)
-    return () => sub.subscription.unsubscribe();
-  }, []);
+    }
+  }, [session?.provider_token, sessionUser?.id]);
 
 
 
