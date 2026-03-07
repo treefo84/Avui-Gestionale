@@ -291,18 +291,7 @@ const App: React.FC = () => {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    // “scudo”: se la sessione è rotta, esci e ripulisci
-    (async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (error?.message?.toLowerCase().includes("refresh token")) {
-        await supabase.auth.signOut();
-        localStorage.clear();
-        sessionStorage.clear();
-        location.reload();
-      }
-    })();
-  }, []);
+
 
   // Check for OAuth errors in URL
   useEffect(() => {
@@ -428,11 +417,7 @@ const App: React.FC = () => {
       let finalUid = session?.user?.id;
       let finalEmail = session?.user?.email;
 
-      if (!finalUid && isLoggedIn) {
-        const { data: { session: sData } } = await supabase.auth.getSession();
-        finalUid = sData?.user?.id;
-        finalEmail = sData?.user?.email;
-      }
+
 
       if (!finalUid) {
         if (!cancelled) setDbUser(null);
