@@ -38,7 +38,7 @@ export const suggestSchedule = async (input: ScheduleSuggestionInput): Promise<P
     .map(a => a.userId);
   
   const availableInstructors = input.users.filter(u => u.role === Role.INSTRUCTOR && availableUserIds.includes(u.id));
-  const availableHelpers = input.users.filter(u => u.role === Role.HELPER && availableUserIds.includes(u.id));
+  const availableHelpers = input.users.filter(u => (u.role === Role.HELPER || u.role === Role.RESERVE) && availableUserIds.includes(u.id));
 
   const prompt = `
     Date: ${input.date}

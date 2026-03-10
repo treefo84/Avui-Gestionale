@@ -33,7 +33,7 @@ export const BoatCard: React.FC<BoatCardProps> = ({
     date
 }) => {
     const instructors = users.filter(u => u.role === Role.INSTRUCTOR || u.role === Role.MANAGER);
-    const helpers = users.filter(u => u.role === Role.HELPER);
+    const helpers = users.filter(u => u.role === Role.HELPER || u.role === Role.RESERVE);
 
     const didLogRef = React.useRef(false);
 

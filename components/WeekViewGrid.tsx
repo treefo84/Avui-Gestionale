@@ -174,7 +174,7 @@ export function WeekViewGrid(props: Props) {
                                                     dayAvailabilities.forEach(a => {
                                                         const role = usersById.get(a.userId)?.role;
                                                         if (role === Role.INSTRUCTOR || role === Role.MANAGER) instructors++;
-                                                        else if (role === Role.HELPER) helpers++;
+                                                        else if (role === Role.HELPER || role === Role.RESERVE) helpers++;
                                                     });
 
                                                     if (instructors === 0 && helpers === 0) return null;
