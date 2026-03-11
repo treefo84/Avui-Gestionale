@@ -21,7 +21,7 @@ import {
   User,
   UserNotification,
 } from "./types";
-import { sendNotificationEmail } from "./services/emailService";
+import { sendNotificationEmail, buildEmailTemplate } from "./services/emailService";
 import { fetchWeather, WeatherDataParsed, getWeatherEmoji, getWindDirection } from './services/weatherService';
 
 import { DayModal } from "./components/DayModal";
@@ -1321,7 +1321,11 @@ const App: React.FC = () => {
                   await sendNotificationEmail({
                     to: u.email,
                     subject: `Nuova Avui Notifica: ${notif.message}`,
-                    html: `<p>Ciao ${u.name},</p><p>${notif.message}</p><p>Accedi all'app per maggiori dettagli.</p>`
+                    html: buildEmailTemplate(
+                      "Nuova Notifica",
+                      `<p>Ciao <strong>${u.name}</strong>,</p>
+                       <p>${notif.message}</p>`
+                    )
                   });
                 }
               })
@@ -1423,7 +1427,11 @@ const App: React.FC = () => {
                 await sendNotificationEmail({
                   to: u.email,
                   subject: `Avui Notifica - Incarico Cancellato`,
-                  html: `<p>Ciao ${u.name},</p><p>${notif.message}</p>`
+                  html: buildEmailTemplate(
+                    "Incarico Cancellato",
+                    `<p>Ciao <strong>${u.name}</strong>,</p>
+                     <p>${notif.message}</p>`
+                  )
                 });
               }
             })).catch(e => console.error("Email send error", e));
@@ -1721,7 +1729,12 @@ const App: React.FC = () => {
             await sendNotificationEmail({
               to: u.email,
               subject: `Nuovo Invito: ${act?.name ?? "Evento"}`,
-              html: `<p>Ciao ${u.name},</p><p>${notif.message}</p><p>Accedi all'app per confermare o rifiutare la tua presenza.</p>`
+              html: buildEmailTemplate(
+                act?.name ?? "Nuova Convocazione",
+                `<p>Ciao <strong>${u.name}</strong>,</p>
+                 <p>${notif.message}</p>
+                 <p>Accedi all'app per confermare o rifiutare la tua presenza.</p>`
+              )
             });
           }
         })
@@ -2156,18 +2169,17 @@ const App: React.FC = () => {
       sendNotificationEmail({
         to: safeEmail,
         subject: "Benvenuto su Avui Gestionale - Credenziali di Accesso",
-        html: `
-          <div style="font-family: sans-serif; color: #333;">
-            <h2>Benvenuto a Bordo, ${payload.name}! ⛵</h2>
-            <p>Il tuo account su Avui Gestionale è stato creato con successo.</p>
-            <p>Di seguito trovi le tue credenziali di accesso provvisorie. Ti ricordiamo che la prima volta che effettuerai l'accesso ti verrà richiesto di cambiare la password per motivi di sicurezza.</p>
-            <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 0 0 10px 0;"><strong>Username / Email:</strong> ${safeEmail}</p>
-              <p style="margin: 0;"><strong>Password Temporanea:</strong> <code>${safePwd}</code></p>
-            </div>
-            <p>Accedi subito all'app per gestire la tua disponibilità e vedere le tue convocazioni!</p>
-          </div>
-        `
+        html: buildEmailTemplate(
+          "Benvenuto a Bordo! ⛵",
+          `<p>Ciao <strong>${payload.name}</strong>,</p>
+           <p>Il tuo account su Avui Gestionale è stato creato con successo.</p>
+           <p>Di seguito trovi le tue credenziali di accesso provvisorie. Ti ricordiamo che la prima volta che effettuerai l'accesso ti verrà richiesto di cambiare la password per motivi di sicurezza.</p>
+           <div style="background-color: #f1f5f9; padding: 16px; border-radius: 8px; margin: 24px 0; border: 1px solid #e2e8f0; text-align: left;">
+             <p style="margin: 0 0 12px 0;"><strong>Username / Email:</strong> <span style="color: #2563eb;">${safeEmail}</span></p>
+             <p style="margin: 0;"><strong>Password Temporanea:</strong> <code style="background-color: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-weight: bold;">${safePwd}</code></p>
+           </div>
+           <p>Accedi subito all'app tramite il link qui sotto per gestire la tua disponibilità e le tue convocazioni!</p>`
+        )
       }).catch((e) => console.error("[ADD USER] Errore invio email di benvenuto", e));
 
       setNotificationToast({ message: "Utente creato ✅ e email inviata!", type: "success" });
