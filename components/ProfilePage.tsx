@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Activity, Assignment, AssignmentStatus, Boat, Role, User } from '../types';
+import { Activity, Assignment, AssignmentStatus, Availability, Boat, Role, User } from '../types';
 import { X, Lock, Save, Calendar, Ship, MapPin, Mail, Scroll, Link as LinkIcon, Check, Loader2, Ban, Phone, Cake, Upload, Settings } from 'lucide-react';
 import { format, isFuture } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -16,6 +16,7 @@ interface ProfilePageProps {
     onUpdateUser: (field: keyof User, value: any) => void;
     globalSettings?: any;
     onToggleWeekView?: () => void;
+    availabilities?: Availability[];
 }
 
 // Stili disponibili su DiceBear che si adattano al contesto
@@ -36,7 +37,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     onClose,
     onUpdateUser,
     globalSettings,
-    onToggleWeekView
+    onToggleWeekView,
+    availabilities = []
 }) => {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -170,6 +172,44 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         .filter(a => isFuture(parseDate(a.date)))
         .sort((a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime());
 
+    // --- Calcolo Statistiche Disponibilità ---
+    const currentYear = new Date().getFullYear();
+    const userAvailabilitiesThisYear = availabilities.filter(a => {
+        if (a.userId !== user.id) return false;
+        const dateObj = parseDate(a.date);
+        return dateObj.getFullYear() === currentYear;
+    });
+
+    const monthCounts = Array(12).fill(0);
+    let positiveCount = 0;
+    const totalResponses = userAvailabilitiesThisYear.length;
+
+    userAvailabilitiesThisYear.forEach(a => {
+        if (a.status === 'AVAILABLE') { // AvailabilityStatus.AVAILABLE
+            positiveCount++;
+            const dateObj = parseDate(a.date);
+            monthCounts[dateObj.getMonth()]++;
+        }
+    });
+
+    const maxMonthValue = Math.max(...monthCounts, 0);
+    const peakMonthIndex = maxMonthValue > 0 ? monthCounts.indexOf(maxMonthValue) : -1;
+    const peakMonthName = peakMonthIndex >= 0 ? new Date(currentYear, peakMonthIndex).toLocaleString('it-IT', { month: 'long' }) : 'Nessuno';
+
+    const availabilityPercentage = totalResponses > 0 ? Math.round((positiveCount / totalResponses) * 100) : 0;
+
+    // Calcolo weekend totali nell'anno corrente
+    let weekendCount = 0;
+    const startOfYear = new Date(currentYear, 0, 1);
+    const endOfYear = new Date(currentYear, 11, 31);
+    for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() === 0 || d.getDay() === 6) {
+            weekendCount++;
+        }
+    }
+    const responseRate = Math.min(Math.round((totalResponses / weekendCount) * 100), 100);
+    // --- Fine Calcolo Statistiche ---
+
     return (
         <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto animate-in slide-in-from-right duration-300">
             {/* Header */}
@@ -197,6 +237,30 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
                 {/* Left Column: Settings */}
                 <div className="md:col-span-5 space-y-6">
+
+                    {/* Statistiche Disponibilità */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <Calendar className="text-teal-500" size={20} /> Statistiche Disponibilità {currentYear}
+                        </h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col justify-center items-center text-center">
+                                <span className="text-3xl font-black text-slate-800">{availabilityPercentage}%</span>
+                                <span className="text-[10px] uppercase font-bold text-slate-500 mt-1">Disponibilità<br />Positiva</span>
+                            </div>
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col justify-center items-center text-center">
+                                <span className="text-3xl font-black text-slate-800">{responseRate}%</span>
+                                <span className="text-[10px] uppercase font-bold text-slate-500 mt-1">Tasso di<br />Risposta</span>
+                            </div>
+                            <div className="col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-600 uppercase">Mese di Punta</span>
+                                <span className="text-sm font-black text-slate-800 capitalize">{peakMonthName}</span>
+                            </div>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-4 text-center">
+                            Calcolato in base alle disponibilità inserite rispetto ai weekend previsti.
+                        </p>
+                    </div>
 
                     {/* Account Details */}
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">

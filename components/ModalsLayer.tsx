@@ -174,6 +174,7 @@ export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(prop
         onRemoveUser={onRemoveUser}
         onToggleRole={onToggleRole}
         onUpdateUser={onUpdateUser as any}
+        availabilities={availabilities}
       />
 
       <FleetManagementPage
@@ -199,6 +200,7 @@ export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(prop
           onUpdateUser={onUpdateProfile as any}
           globalSettings={globalSettings}
           onToggleWeekView={onToggleWeekView}
+          availabilities={availabilities}
         />
       )}
 

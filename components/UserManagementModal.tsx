@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Role, User } from "../types";
+import { Role, User, Availability } from "../types";
 import {
   X,
   UserPlus,
@@ -38,6 +38,7 @@ interface UserManagementModalProps {
   onRemoveUser: (userId: string) => void;
   onToggleRole: (userId: string) => void;
   onUpdateUser: (userId: string, updates: Partial<User>) => void;
+  availabilities?: Availability[];
 }
 
 const AVATAR_SEEDS = [
@@ -76,6 +77,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   onRemoveUser,
   onToggleRole,
   onUpdateUser,
+  availabilities = [],
 }) => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
@@ -104,6 +106,17 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   // reset password (edit mode)
   const [editNewPassword, setEditNewPassword] = useState("");
   const [forcePasswordChange, setForcePasswordChange] = useState(false);
+
+  const currentYear = new Date().getFullYear();
+  const weekendCount = useMemo(() => {
+    let count = 0;
+    const startOfYear = new Date(currentYear, 0, 1);
+    const endOfYear = new Date(currentYear, 11, 31);
+    for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() === 0 || d.getDay() === 6) count++;
+    }
+    return count;
+  }, [currentYear]);
 
   const sortedUsers = useMemo(() => {
     const roleOrder = {
@@ -540,6 +553,23 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                       roleName = "Riserva";
                     }
 
+                    const userAvails = availabilities.filter(a => a.userId === user.id && String(a.date).startsWith(String(currentYear)));
+                    const monthCounts = Array(12).fill(0);
+                    let positiveCount = 0;
+                    userAvails.forEach(a => {
+                        if (a.status === 'AVAILABLE') {
+                            positiveCount++;
+                            const d = new Date(a.date);
+                            monthCounts[d.getMonth()]++;
+                        }
+                    });
+                    const maxMonthValue = Math.max(...monthCounts, 0);
+                    const peakMonthIndex = maxMonthValue > 0 ? monthCounts.indexOf(maxMonthValue) : -1;
+                    const peakMonthName = peakMonthIndex >= 0 ? new Date(currentYear, peakMonthIndex).toLocaleString('it-IT', { month: 'short' }) : '-';
+                    const totalResponses = userAvails.length;
+                    const availabilityPercentage = totalResponses > 0 ? Math.round((positiveCount / totalResponses) * 100) : 0;
+                    const responseRate = weekendCount > 0 ? Math.min(Math.round((totalResponses / weekendCount) * 100), 100) : 0;
+
                     return (
                       <div
                         key={user.id}
@@ -576,6 +606,17 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                                     <Phone size={8} /> {user.phoneNumber}
                                   </p>
                                 )}
+                              </div>
+                              <div className="flex gap-2 mt-1.5 flex-wrap">
+                                <span className="text-[9px] font-bold text-teal-700 bg-teal-50/80 px-1.5 py-0.5 rounded border border-teal-100">
+                                  {availabilityPercentage}% Disponibilità
+                                </span>
+                                <span className="text-[9px] font-bold text-blue-700 bg-blue-50/80 px-1.5 py-0.5 rounded border border-blue-100">
+                                  {responseRate}% Tasso Risp.
+                                </span>
+                                <span className="text-[9px] font-bold text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200 capitalize">
+                                  🏆 Picco: {peakMonthName}
+                                </span>
                               </div>
                             </div>
                           </div>
