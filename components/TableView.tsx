@@ -154,7 +154,22 @@ export const TableView: React.FC<TableViewProps> = ({
                                 {relevantDates.map(date => {
                                     const dateStr = format(date, 'yyyy-MM-dd');
 
-                                    // 1. Check Assignment
+                                    // 1. Check Availability First
+                                    const avail = availabilities.find(a => a.userId === user.id && a.date === dateStr);
+                                    let bgClass = "bg-transparent";
+                                    let content = null;
+
+                                    if (avail) {
+                                        if (avail.status === AvailabilityStatus.AVAILABLE) {
+                                            bgClass = "bg-green-100/50";
+                                            content = <div className="w-full h-full flex items-center justify-center text-green-600"><span className="text-xs font-bold">✔️</span></div>;
+                                        } else if (avail.status === AvailabilityStatus.UNAVAILABLE) {
+                                            bgClass = "bg-red-50";
+                                            content = <div className="w-full h-full flex items-center justify-center text-red-400 opacity-60"><span className="text-xs font-bold">✖</span></div>;
+                                        }
+                                    }
+
+                                    // 2. Check Assignment
                                     const assignment = getUserAssignment(user.id, date);
 
                                     if (assignment) {
@@ -170,7 +185,7 @@ export const TableView: React.FC<TableViewProps> = ({
                                         const activityName = activity?.name || 'Attività';
 
                                         return (
-                                            <td key={dateStr} className="p-1 border border-slate-200 align-top">
+                                            <td key={dateStr} className={`p-1 border border-slate-200 align-top ${bgClass}`}>
                                                 <div
                                                     onClick={() => {
                                                         const isCurrentUserInstructorOrAdmin = currentUser?.role === 'ISTRUTTORE' || currentUser?.isAdmin;
@@ -192,12 +207,12 @@ export const TableView: React.FC<TableViewProps> = ({
                                         );
                                     }
 
-                                    // 2. Check General Event
+                                    // 3. Check General Event
                                     const gEvent = getUserEvent(user.id, dateStr);
                                     if (gEvent) {
                                         const activity = activities.find(a => a.id === gEvent.activityId);
                                         return (
-                                            <td key={dateStr} className="p-1 border border-slate-200 align-top">
+                                            <td key={dateStr} className={`p-1 border border-slate-200 align-top ${bgClass}`}>
                                                 <div className="p-1.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-300">
                                                     <div className="truncate font-bold">🎉 {activity?.name || 'Evento'}</div>
                                                 </div>
@@ -205,21 +220,7 @@ export const TableView: React.FC<TableViewProps> = ({
                                         );
                                     }
 
-                                    // 3. Check Availability
-                                    const avail = availabilities.find(a => a.userId === user.id && a.date === dateStr);
-                                    let bgClass = "bg-transparent";
-                                    let content = null;
-
-                                    if (avail) {
-                                        if (avail.status === AvailabilityStatus.AVAILABLE) {
-                                            bgClass = "bg-green-100/50";
-                                            content = <div className="w-full h-full flex items-center justify-center text-green-600"><span className="text-xs font-bold">✔️</span></div>;
-                                        } else if (avail.status === AvailabilityStatus.UNAVAILABLE) {
-                                            bgClass = "bg-red-50";
-                                            content = <div className="w-full h-full flex items-center justify-center text-red-400 opacity-60"><span className="text-xs font-bold">✖</span></div>;
-                                        }
-                                    }
-
+                                    // 4. Return Availability Only if no assign/event
                                     return (
                                         <td
                                             key={dateStr}

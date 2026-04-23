@@ -14,6 +14,7 @@ interface BoatCardProps {
     onDelete: (id: string) => void;
     onOpenBoatPage: (id: string) => void;
     date: string;
+    isAdmin: boolean;
 }
 
 const parseDate = (dateString: string) => {
@@ -30,7 +31,8 @@ export const BoatCard: React.FC<BoatCardProps> = ({
     onUpdate,
     onDelete,
     onOpenBoatPage,
-    date
+    date,
+    isAdmin
 }) => {
     const instructors = users.filter(u => u.role === Role.INSTRUCTOR || u.role === Role.MANAGER);
     const helpers = users.filter(u => u.role === Role.HELPER || u.role === Role.RESERVE);
@@ -42,15 +44,21 @@ export const BoatCard: React.FC<BoatCardProps> = ({
         didLogRef.current = true;
     };
 
+    // --- DRAFT STATE FOR ADMINS ---
+    const [isDrafting, setIsDrafting] = React.useState(false);
+    const [draftAssignment, setDraftAssignment] = React.useState<Assignment | undefined>(undefined);
+    const [draftDelete, setDraftDelete] = React.useState(false);
+
+    const currentAssignment = isDrafting ? draftAssignment : assignment;
 
     // Filter activities based on boat type
     const allowedActivities = activities.filter(a => (a.allowedBoatTypes ?? []).includes(boat.type));
-    const isCancelled = assignment?.status === AssignmentStatus.CANCELLED;
+    const isCancelled = currentAssignment?.status === AssignmentStatus.CANCELLED;
 
     const handleFieldChange = (field: keyof Assignment, value: any) => {
         if (isCancelled && field !== 'status') return;
 
-        const baseAssignment: Assignment = assignment || {
+        const baseAssignment: Assignment = currentAssignment || {
             id: crypto.randomUUID(),
             date,
             boatId: boat.id,
@@ -69,27 +77,61 @@ export const BoatCard: React.FC<BoatCardProps> = ({
         if (field === 'instructorId') updates.instructorStatus = ConfirmationStatus.PENDING;
         if (field === 'helperId') updates.helperStatus = ConfirmationStatus.PENDING;
 
-        onUpdate({ ...baseAssignment, ...updates });
+        const newAssignment = { ...baseAssignment, ...updates };
+
+        if (isAdmin) {
+            setDraftAssignment(newAssignment);
+            setIsDrafting(true);
+            setDraftDelete(false);
+        } else {
+            onUpdate(newAssignment);
+        }
     };
 
     const toggleCancellation = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!assignment) return;
+        if (!currentAssignment) return;
         const newStatus = isCancelled ? AssignmentStatus.CONFIRMED : AssignmentStatus.CANCELLED;
-        onUpdate({ ...assignment, status: newStatus });
+        
+        if (isAdmin) {
+            setDraftAssignment({ ...currentAssignment, status: newStatus });
+            setIsDrafting(true);
+            setDraftDelete(false);
+        } else {
+            onUpdate({ ...currentAssignment, status: newStatus });
+        }
     };
 
-    const isContinued = assignment && assignment.date !== date;
-    const startDate = assignment ? parseDate(assignment.date) : parseDate(date);
-    const endDate = assignment ? addDays(startDate, assignment.durationDays - 1) : addDays(startDate, 1);
+    const handleSaveDraft = () => {
+        if (draftDelete) {
+            if (assignment?.id) onDelete(assignment.id);
+        } else if (draftAssignment) {
+            onUpdate(draftAssignment);
+        }
+        setIsDrafting(false);
+        setDraftDelete(false);
+    };
+
+    const handleCancelDraft = () => {
+        setIsDrafting(false);
+        setDraftDelete(false);
+        setDraftAssignment(undefined);
+    };
+
+    const isContinued = currentAssignment && currentAssignment.date !== date;
+    const startDate = currentAssignment ? parseDate(currentAssignment.date) : parseDate(date);
+    const endDate = currentAssignment ? addDays(startDate, currentAssignment.durationDays - 1) : addDays(startDate, 1);
 
     // Styling based on status
     let cardBg = "bg-white border-slate-200";
-    if (isCancelled) {
+    
+    if (isDrafting) {
+        cardBg = "bg-orange-50 border-orange-400 ring-2 ring-orange-400 border-dashed ring-offset-1";
+    } else if (isCancelled) {
         cardBg = "bg-red-50 border-red-200";
-    } else if (assignment?.instructorId && assignment?.helperId) {
+    } else if (currentAssignment?.instructorId && currentAssignment?.helperId) {
         // Check if pending
-        if (assignment.instructorStatus === ConfirmationStatus.PENDING || assignment.helperStatus === ConfirmationStatus.PENDING) {
+        if (currentAssignment.instructorStatus === ConfirmationStatus.PENDING || currentAssignment.helperStatus === ConfirmationStatus.PENDING) {
             cardBg = "bg-amber-50/50 border-amber-300";
         } else {
             cardBg = "bg-teal-50/50 border-teal-500";
@@ -134,7 +176,6 @@ export const BoatCard: React.FC<BoatCardProps> = ({
                             }
                         }}
                     >
-                        <h3 className="font-bold text-slate-800 leading-tight group-hover:underline">{boat.name}</h3>
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
                             {boat.type}
                         </span>
@@ -142,7 +183,7 @@ export const BoatCard: React.FC<BoatCardProps> = ({
                 </div>
 
                 {/* Actions - Delete button removed, Cancel button retained */}
-                {isInstructor && assignment?.activityId && (
+                {isInstructor && currentAssignment?.activityId && (
                     <div className="flex items-center gap-1 relative z-20">
                         <button
                             type="button"
@@ -163,11 +204,14 @@ export const BoatCard: React.FC<BoatCardProps> = ({
                     <select
                         disabled={!isInstructor}
                         className="w-full text-sm p-2 rounded-lg border border-slate-300 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed text-slate-900"
-                        value={assignment?.activityId || ''}
+                        value={currentAssignment?.activityId || ''}
                         onChange={(e) => {
                             if (e.target.value === 'CLEAR_SELECTION') {
-                                if (assignment?.id) {
-                                    onDelete(assignment.id);
+                                if (isAdmin) {
+                                    setIsDrafting(true);
+                                    setDraftDelete(true);
+                                } else {
+                                    if (assignment?.id) onDelete(assignment.id);
                                 }
                             } else {
                                 handleFieldChange('activityId', e.target.value);
@@ -183,14 +227,14 @@ export const BoatCard: React.FC<BoatCardProps> = ({
                 </div>
 
                 {/* Date and Duration */}
-                {assignment?.activityId && (
+                {currentAssignment?.activityId && (
                     <div className="bg-slate-100 p-2 rounded-lg space-y-2">
                         <div className="flex items-center gap-2">
                             <label className="text-xs font-semibold text-slate-600 w-14 shrink-0">Inizio:</label>
                             <input
                                 type="date"
                                 disabled={!isInstructor}
-                                value={assignment.date}
+                                value={currentAssignment.date}
                                 onChange={(e) => handleFieldChange('date', e.target.value)}
                                 style={{ colorScheme: 'light' }}
                                 className="flex-1 text-xs p-1 rounded border border-slate-300 bg-white text-slate-900 outline-none focus:border-blue-500"
@@ -204,7 +248,7 @@ export const BoatCard: React.FC<BoatCardProps> = ({
                                     min="1"
                                     max="14"
                                     disabled={!isInstructor}
-                                    value={assignment.durationDays || 1}
+                                    value={currentAssignment.durationDays || 1}
                                     onChange={(e) => handleFieldChange('durationDays', parseInt(e.target.value) || 1)}
                                     style={{ colorScheme: 'light' }}
                                     className="w-12 text-xs p-1 rounded border border-slate-300 text-center disabled:opacity-70 bg-white text-slate-900 outline-none focus:border-blue-500"
@@ -222,12 +266,12 @@ export const BoatCard: React.FC<BoatCardProps> = ({
                     <div>
                         <label className="block text-xs font-semibold text-slate-500 mb-1 flex items-center gap-1">
                             <Compass size={12} /> Il Comandante
-                            {assignment?.instructorId && renderStatusIcon(assignment.instructorStatus)}
+                            {currentAssignment?.instructorId && renderStatusIcon(currentAssignment.instructorStatus)}
                         </label>
                         <select
                             disabled={!isInstructor}
-                            className="w-full text-sm p-2 rounded-lg border border-slate-300 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed text-slate-900"
-                            value={assignment?.instructorId || ''}
+                            className={`w-full text-sm p-2 rounded-lg border bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed text-slate-900 ${isDrafting && currentAssignment?.instructorId !== assignment?.instructorId ? 'border-orange-400 bg-orange-50' : 'border-slate-300'}`}
+                            value={currentAssignment?.instructorId || ''}
                             onChange={(e) => handleFieldChange('instructorId', e.target.value)}
                         >
                             <option value="">Nessuno</option>
@@ -241,12 +285,12 @@ export const BoatCard: React.FC<BoatCardProps> = ({
                     <div>
                         <label className="block text-xs font-semibold text-slate-500 mb-1 flex items-center gap-1">
                             <LifeBuoy size={12} /> Mozzo
-                            {assignment?.helperId && renderStatusIcon(assignment.helperStatus)}
+                            {currentAssignment?.helperId && renderStatusIcon(currentAssignment.helperStatus)}
                         </label>
                         <select
                             disabled={!isInstructor}
-                            className="w-full text-sm p-2 rounded-lg border border-slate-300 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed text-slate-900"
-                            value={assignment?.helperId || ''}
+                            className={`w-full text-sm p-2 rounded-lg border bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed text-slate-900 ${isDrafting && currentAssignment?.helperId !== assignment?.helperId ? 'border-orange-400 bg-orange-50' : 'border-slate-300'}`}
+                            value={currentAssignment?.helperId || ''}
                             onChange={(e) => handleFieldChange('helperId', e.target.value)}
                         >
                             <option value="">Nessuno</option>
@@ -258,21 +302,40 @@ export const BoatCard: React.FC<BoatCardProps> = ({
                 </div>
 
                 {/* Logbook / Notes */}
-                {assignment?.activityId && (
+                {currentAssignment?.activityId && (
                     <div className="pt-2 border-t border-slate-200 mt-2">
                         <label className="block text-xs font-semibold text-slate-500 mb-1 flex items-center gap-1">
-                            <BookOpen size={12} /> Diario di Bordo
+                            <BookOpen size={12} /> Giornale di Bordo (Note)
                         </label>
                         <textarea
                             disabled={!isInstructor}
-                            value={assignment.notes || ''}
+                            className={`w-full text-xs p-2 rounded-lg border bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed text-slate-900 resize-none h-16 ${isDrafting && currentAssignment?.notes !== assignment?.notes ? 'border-orange-400 bg-orange-50' : 'border-slate-300'}`}
+                            value={currentAssignment.notes || ''}
                             onChange={(e) => handleFieldChange('notes', e.target.value)}
                             placeholder="Note sulla missione..."
-                            className="w-full text-xs p-2 rounded-lg border border-slate-300 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed text-slate-900 resize-none h-16"
                         />
                     </div>
                 )}
             </div>
+
+            {/* Admin Draft Actions */}
+            {isDrafting && isAdmin && (
+                <div className="mt-4 pt-3 border-t border-orange-200 flex items-center justify-end gap-2">
+                    <span className="text-xs text-orange-600 font-bold mr-auto tracking-tight uppercase">Modifiche non salvate</span>
+                    <button
+                        onClick={handleCancelDraft}
+                        className="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors border border-slate-200"
+                    >
+                        Annulla
+                    </button>
+                    <button
+                        onClick={handleSaveDraft}
+                        className="px-4 py-1.5 text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white rounded-lg shadow-md transition-colors border border-orange-600"
+                    >
+                        Salva / Notifica
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

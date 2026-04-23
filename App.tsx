@@ -1219,7 +1219,7 @@ const App: React.FC = () => {
       if (instructorId && newAssignment.instructorStatus === "PENDING") {
         const isNewOrChanged = oldAssignment?.instructorId !== instructorId || oldAssignment?.instructorStatus !== "PENDING";
         if (isNewOrChanged) {
-          const refKey = `ASSIGNMENT_REQUEST:${newAssignment.id}:INSTRUCTOR`;
+          const refKey = `ASSIGNMENT_REQUEST:${newAssignment.id}:INSTRUCTOR:${Date.now()}`;
           notifsToCreate.push({
             user_id: instructorId,
             type: NotificationType.ASSIGNMENT_REQUEST,
@@ -1235,7 +1235,7 @@ const App: React.FC = () => {
       if (helperId && newAssignment.helperStatus === "PENDING") {
         const isNewOrChanged = oldAssignment?.helperId !== helperId || oldAssignment?.helperStatus !== "PENDING";
         if (isNewOrChanged) {
-          const refKey = `ASSIGNMENT_REQUEST:${newAssignment.id}:HELPER`;
+          const refKey = `ASSIGNMENT_REQUEST:${newAssignment.id}:HELPER:${Date.now()}`;
           notifsToCreate.push({
             user_id: helperId,
             type: NotificationType.ASSIGNMENT_REQUEST,

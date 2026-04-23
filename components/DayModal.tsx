@@ -744,6 +744,7 @@ export const DayModal: React.FC<DayModalProps> = ({
                                         users={boatSpecificUsers}
                                         activities={activities}
                                         isInstructor={isCommandingOfficer}
+                                        isAdmin={currentUser?.isAdmin || false}
                                         onUpdate={onUpdateAssignment}
                                         onDelete={onDeleteAssignment}
                                         onOpenBoatPage={onOpenBoatPage}
