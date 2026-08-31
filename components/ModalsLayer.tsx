@@ -162,6 +162,7 @@ export const ModalsLayer: React.FC<Props> = React.memo(function ModalsLayer(prop
           onDeleteDayNote={onDeleteDayNote}
           calendarEvents={selectedCalendarEvents}
           onCreateCalendarEvent={onCreateCalendarEvent}
+          onOpenBoatPage={onOpenBoatPage}
         />
       )}
 

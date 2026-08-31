@@ -75,9 +75,14 @@ export function AppNavbar({
         <div className="bg-blue-600 p-2 rounded-lg text-white">
           <Ship size={20} />
         </div>
-        <h1 className="text-xl font-bold tracking-tight text-slate-800 hidden sm:block">
-          Calendario Avui
-        </h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold tracking-tight text-slate-800 hidden sm:block">
+            Calendario Avui
+          </h1>
+          <span className="text-xs font-bold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full border border-blue-200">
+            2.0
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center gap-4">

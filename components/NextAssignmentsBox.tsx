@@ -21,6 +21,14 @@ type UpcomingItem = {
     icon: React.ReactNode;
 };
 
+const parseDate = (dateString?: string | null) => {
+    if (!dateString) return new Date();
+    const safe = String(dateString).slice(0, 10);
+    const [year, month, day] = safe.split("-").map(Number);
+    if (!year || !month || !day) return new Date();
+    return new Date(year, month - 1, day);
+};
+
 export const NextAssignmentsBox: React.FC<NextAssignmentsBoxProps> = ({
     currentUser,
     assignments,
@@ -36,7 +44,7 @@ export const NextAssignmentsBox: React.FC<NextAssignmentsBoxProps> = ({
     const upcomingAssignments = assignments
         .filter(a => {
             // Must be in the future or today
-            const aDate = startOfDay(new Date(a.date));
+            const aDate = startOfDay(parseDate(a.date));
             if (isBefore(aDate, today)) return false;
 
             // Must involve the current user
@@ -57,7 +65,7 @@ export const NextAssignmentsBox: React.FC<NextAssignmentsBoxProps> = ({
 
             return {
                 id: a.id,
-                date: new Date(a.date),
+                date: parseDate(a.date),
                 type: 'assignment' as const,
                 title: `${activity?.name || 'Uscita'} in ${boat?.name || 'Barca'}`,
                 subtitle: `Ruolo: ${role} ${a.durationDays > 1 ? `(${a.durationDays} gg)` : ''}`,
@@ -69,7 +77,7 @@ export const NextAssignmentsBox: React.FC<NextAssignmentsBoxProps> = ({
     const upcomingEvents = generalEvents
         .filter(e => {
             // Must be in the future or today
-            const eDate = startOfDay(new Date(e.date));
+            const eDate = startOfDay(parseDate(e.date));
             if (isBefore(eDate, today)) return false;
 
             // Must be invited and confirmed
@@ -83,7 +91,7 @@ export const NextAssignmentsBox: React.FC<NextAssignmentsBoxProps> = ({
             const timeStr = e.startTime ? ` alle ${e.startTime}` : '';
             return {
                 id: e.id,
-                date: new Date(e.date),
+                date: parseDate(e.date),
                 type: 'general_event' as const,
                 title: activity?.name || 'Evento Speciale',
                 subtitle: `Evento di gruppo${timeStr}`,

@@ -595,15 +595,17 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                             </h4>
 
                             <div className="flex flex-col mt-0.5">
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 min-w-0">
                                 {user.email && (
-                                  <p className="text-[10px] text-slate-400 truncate flex items-center gap-0.5">
-                                    <Mail size={8} /> {user.email}
+                                  <p className="text-[10px] text-slate-400 flex items-center gap-0.5" title={user.email}>
+                                    <Mail size={8} className="shrink-0" />
+                                    <span className="truncate max-w-[120px] sm:max-w-[160px]">{user.email}</span>
                                   </p>
                                 )}
                                 {user.phoneNumber && (
-                                  <p className="text-[10px] text-slate-400 truncate flex items-center gap-0.5">
-                                    <Phone size={8} /> {user.phoneNumber}
+                                  <p className="text-[10px] text-slate-400 flex items-center gap-0.5" title={user.phoneNumber}>
+                                    <Phone size={8} className="shrink-0" />
+                                    <span className="truncate max-w-[120px] sm:max-w-[160px]">{user.phoneNumber}</span>
                                   </p>
                                 )}
                               </div>

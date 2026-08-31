@@ -35,33 +35,35 @@ export type CalendarGridProps = {
   DayCell: React.ComponentType<any>; // riusi il tuo DayCell senza riscriverlo
 };
 
-export function CalendarGrid({
-  daysToRender,
-  calendarView,
-  startDayPadding,
-  currentUser,
-  boats,
-  activitiesById,
-  boatsById,
-  usersById,
-  calEventsByDate,
-  generalEventsByDate,
-  maintenanceByDate,
-  myAvailabilityByDate,
-  allAvailabilitiesByDate,
-  weatherData,
-  notesByDate,
-  getEffectiveAssignment,
-  isCommanderConfirmed,
-  onDayClick,
-  onOpenBoatPage,
-  onDayEnter,
-  onDayLeave,
-  onMouseMove,
-  DayCell,
-}: CalendarGridProps) {
+export function CalendarGrid(props: CalendarGridProps) {
+  const {
+    daysToRender,
+    calendarView,
+    startDayPadding,
+    currentUser,
+    boats,
+    activitiesById,
+    boatsById,
+    usersById,
+    calEventsByDate,
+    generalEventsByDate,
+    maintenanceByDate,
+    myAvailabilityByDate,
+    allAvailabilitiesByDate,
+    weatherData,
+    notesByDate,
+    getEffectiveAssignment,
+    isCommanderConfirmed,
+    onDayClick,
+    onOpenBoatPage,
+    onDayEnter,
+    onDayLeave,
+    onMouseMove,
+    DayCell,
+  } = props;
+
   if (calendarView === "week") {
-    return <WeekViewGrid {...arguments[0]} />;
+    return <WeekViewGrid {...props} />;
   }
 
   return (

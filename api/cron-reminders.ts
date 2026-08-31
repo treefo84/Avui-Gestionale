@@ -25,7 +25,7 @@ export default async function handler(req: any, res: any) {
     // 1. Recupera gli utenti (tranne MANAGER e RISERVA che potrebbero non dover inserire disponibilità)
     const { data: users, error: usersErr } = await supabase
       .from("users")
-      .select("id, name, email, role")
+      .select("auth_id, name, email, role")
       .neq("role", "MANAGER");
 
     if (usersErr) throw usersErr;
@@ -33,7 +33,7 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ message: "Nessun utente trovato." });
     }
 
-    // Calcoliamo il mese corrente (es. "2023-11%")
+    // Calcoliamo il mese corrente (es. "2026-08%")
     const today = new Date();
     const currentYearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
 
@@ -49,7 +49,7 @@ export default async function handler(req: any, res: any) {
     const usersWithAvailability = new Set(availabilities?.map((a) => a.user_id));
 
     // 3. Filtriamo gli utenti che NON hanno inserito disponibilità e che hanno un'email
-    const usersToRemind = users.filter((u) => !usersWithAvailability.has(u.id) && u.email);
+    const usersToRemind = users.filter((u) => !usersWithAvailability.has(u.auth_id) && u.email);
 
     if (usersToRemind.length === 0) {
       return res.status(200).json({ message: "Tutti hanno inserito le disponibilità." });
