@@ -30,10 +30,10 @@ import { UserManagementModal } from "./components/UserManagementModal";
 import { ProfilePage } from "./components/ProfilePage";
 import { FleetManagementPage } from "./components/FleetManagementPage";
 import { CalendarGrid } from "./components/CalendarGrid";
-import { Navbar } from "./components/Navbar";
 import { ModalsLayer } from "./components/ModalsLayer";
 import { CalendarHeader } from "./components/CalendarHeader";
 import { AppNavbar } from "./components/AppNavbar";
+import { AppSidebar, SectionType } from "./components/AppSidebar";
 import { NoticeBoard } from "./components/NoticeBoard";
 import { NextAssignmentsBox } from "./components/NextAssignmentsBox";
 import { WeatherWidget } from "./components/WeatherWidget";
@@ -201,6 +201,9 @@ const App: React.FC = () => {
 
   // --- UI STATE ---
   const [appReady, setAppReady] = useState(false);
+  const [activeSection, setActiveSection] = useState<SectionType>("dashboard");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarView, setCalendarView] = useState<"month" | "week" | "table">("month");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -2750,126 +2753,162 @@ const App: React.FC = () => {
         )}
 
 
-      {/* Navbar */}
-      <AppNavbar
-        currentUser={currentUser}
-        currentUserId={currentUserId}
-        isNotificationOpen={isNotificationOpen}
-        setIsNotificationOpen={setIsNotificationOpen}
-        isProfileOpen={isProfileOpen}
-        setIsProfileOpen={setIsProfileOpen}
-        isUserManagementOpen={isUserManagementOpen}
-        setIsUserManagementOpen={setIsUserManagementOpen}
-        isFleetManagementOpen={isFleetManagementOpen}
-        setIsFleetManagementOpen={setIsFleetManagementOpen}
-        isMaintenanceHubOpen={isMaintenanceHubOpen}
-        setIsMaintenanceHubOpen={setIsMaintenanceHubOpen}
-        notificationPanelRef={notificationPanelRef}
-        notifications={notifications}
-        handleLogout={handleLogout}
-        handleEventResponse={handleEventResponse}
-        handleAssignmentResponse={handleAssignmentResponse}
-        handleMarkNotificationRead={handleMarkNotificationRead}
-      />
-
-
-      {/* Fleet Management (admin) */}
-      {isFleetManagementOpen && (
-        <FleetManagementPage
-          isOpen={isFleetManagementOpen}
-          onClose={() => setIsFleetManagementOpen(false)}
-          boats={boats}
-          activities={activities}
-          maintenanceRecords={maintenanceRecords}
-          onUpdateBoats={setBoats}
-          onUpdateActivities={setActivities}
-          onUpdateMaintenance={setMaintenanceRecords}
+      <div className="flex-1 flex flex-row min-h-screen">
+        {/* Sidebar Laterale Sinistra */}
+        <AppSidebar
+          activeSection={activeSection}
+          onSelectSection={(sec) => setActiveSection(sec)}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          isMobileOpen={isMobileSidebarOpen}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          currentUser={currentUser}
+          onOpenFleet={() => setIsFleetManagementOpen(true)}
+          onOpenMaintenance={() => setIsMaintenanceHubOpen(true)}
+          onOpenUsers={() => setIsUserManagementOpen(true)}
+          onOpenProfile={() => setIsProfileOpen(true)}
+          onLogout={handleLogout}
         />
-      )}
 
-      <main className="flex-1 p-2 sm:p-4 md:p-6 pb-20 gap-4 md:gap-6 w-full max-w-[1536px] mx-auto flex flex-col">
-        {/* Top Section: Calendar + Sidebar */}
-        <div className="flex flex-col xl:flex-row gap-4 md:gap-6 w-full">
-          {/* Calendar Section */}
-          <div className="flex-1 min-w-0 bg-white md:rounded-xl shadow-sm border-y md:border border-slate-200 overflow-hidden flex flex-col p-3 sm:p-4 md:p-6 -mx-2 sm:mx-0">
-            <CalendarHeader
-              currentDate={currentDate}
-              calendarView={calendarView}
-              onPrev={() => navigateCalendar("prev")}
-              onToday={() => setCurrentDate(new Date())}
-              onNext={() => navigateCalendar("next")}
-              onSetView={(v) => setCalendarView(v)}
-              enableWeekView={globalSettings?.enable_week_view ?? false}
-            />
+        {/* Colonna Contenuto (Navbar + Pagina) */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-slate-100">
+          {/* Navbar */}
+          <AppNavbar
+            currentUser={currentUser}
+            currentUserId={currentUserId}
+            activeSection={activeSection}
+            onToggleMobileSidebar={() => setIsMobileSidebarOpen((v) => !v)}
+            isNotificationOpen={isNotificationOpen}
+            setIsNotificationOpen={setIsNotificationOpen}
+            isProfileOpen={isProfileOpen}
+            setIsProfileOpen={setIsProfileOpen}
+            notificationPanelRef={notificationPanelRef}
+            notifications={notifications}
+            handleLogout={handleLogout}
+            handleEventResponse={handleEventResponse}
+            handleAssignmentResponse={handleAssignmentResponse}
+            handleMarkNotificationRead={handleMarkNotificationRead}
+          />
 
-            <div className="flex-1 bg-white xl:bg-transparent rounded-xl xl:rounded-none">
-              {calendarView === "table" ? (
-                <TableView
-                  currentUser={currentUser}
-                  users={users}
-                  availabilities={availabilities}
-                  assignments={assignments}
-                  generalEvents={generalEvents}
-                  boats={boats}
-                  activities={activities}
-                  onDateClick={(dateStr) => {
-                    setSelectedDate(dateStr);
-                    setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
-                  }}
-                  onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
-                />
-              ) : (
-                <CalendarGrid
-                  daysToRender={daysToRender}
-                  calendarView={calendarView}
-                  startDayPadding={startDayPadding}
-                  currentUser={currentUser}
-                  boats={boats}
-                  activitiesById={activitiesById}
-                  boatsById={boatsById}
-                  usersById={usersById}
-                  calEventsByDate={calEventsByDate}
-                  generalEventsByDate={generalEventsByDate}
-                  maintenanceByDate={maintenanceByDate}
-                  myAvailabilityByDate={myAvailabilityByDate}
-                  allAvailabilitiesByDate={allAvailabilitiesByDate}
-                  weatherData={weatherData}
-                  notesByDate={notesByDate}
-                  getEffectiveAssignment={getEffectiveAssignment}
-                  isCommanderConfirmed={isCommanderConfirmed}
-                  onDayClick={(dateStr) => {
-                    setSelectedDate(dateStr);
-                    setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
-                  }}
-                  onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
-                  onDayEnter={(dateStr) => setHoveredDate(dateStr)}
-                  onDayLeave={() => setHoveredDate(null)}
-                  onMouseMove={handleMouseMove}
-                  DayCell={DayCell}
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Notice Board Section (Sidebar on XL, Bottom on Mobile) */}
-          <aside className="w-full xl:w-[400px] shrink-0 flex flex-col gap-6">
-            <NextAssignmentsBox
-              assignments={assignments}
-              generalEvents={generalEvents}
+          {/* Fleet Management (admin) */}
+          {isFleetManagementOpen && (
+            <FleetManagementPage
+              isOpen={isFleetManagementOpen}
+              onClose={() => setIsFleetManagementOpen(false)}
               boats={boats}
               activities={activities}
-              currentUser={currentUser}
+              maintenanceRecords={maintenanceRecords}
+              onUpdateBoats={setBoats}
+              onUpdateActivities={setActivities}
+              onUpdateMaintenance={setMaintenanceRecords}
+              onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
             />
-            <NoticeBoard currentUser={currentUser} />
-          </aside>
-        </div>
+          )}
 
-        {/* Bottom Section: Horizontal Weather */}
-        <div className="w-full shrink-0">
-          <WeatherWidget weatherData={weatherData} />
-        </div>
+          <main className="flex-1 p-3 sm:p-5 md:p-6 pb-20 w-full max-w-[1600px] mx-auto flex flex-col gap-6">
+            {/* 1) VISTA DASHBOARD (Panoramica generale) */}
+            {activeSection === "dashboard" && (
+              <div className="flex flex-col gap-6 w-full animate-in fade-in duration-200">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full items-start">
+                  <div className="lg:col-span-5 flex flex-col gap-6">
+                    <NextAssignmentsBox
+                      assignments={assignments}
+                      generalEvents={generalEvents}
+                      boats={boats}
+                      activities={activities}
+                      currentUser={currentUser}
+                    />
+                  </div>
+                  <div className="lg:col-span-7">
+                    <NoticeBoard currentUser={currentUser} />
+                  </div>
+                </div>
 
-      </main>
+                <div className="w-full">
+                  <WeatherWidget weatherData={weatherData} />
+                </div>
+              </div>
+            )}
+
+            {/* 2) VISTA CALENDARIO USCITE (A tutta larghezza) */}
+            {activeSection === "calendar" && (
+              <div className="w-full bg-white md:rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col p-3 sm:p-5 md:p-6 animate-in fade-in duration-200">
+                <CalendarHeader
+                  currentDate={currentDate}
+                  calendarView={calendarView}
+                  onPrev={() => navigateCalendar("prev")}
+                  onToday={() => setCurrentDate(new Date())}
+                  onNext={() => navigateCalendar("next")}
+                  onSetView={(v) => setCalendarView(v)}
+                  enableWeekView={globalSettings?.enable_week_view ?? false}
+                />
+
+                <div className="flex-1 bg-white xl:bg-transparent rounded-xl xl:rounded-none">
+                  {calendarView === "table" ? (
+                    <TableView
+                      currentUser={currentUser}
+                      users={users}
+                      availabilities={availabilities}
+                      assignments={assignments}
+                      generalEvents={generalEvents}
+                      boats={boats}
+                      activities={activities}
+                      onDateClick={(dateStr) => {
+                        setSelectedDate(dateStr);
+                        setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
+                      }}
+                      onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
+                    />
+                  ) : (
+                    <CalendarGrid
+                      daysToRender={daysToRender}
+                      calendarView={calendarView}
+                      startDayPadding={startDayPadding}
+                      currentUser={currentUser}
+                      boats={boats}
+                      activitiesById={activitiesById}
+                      boatsById={boatsById}
+                      usersById={usersById}
+                      calEventsByDate={calEventsByDate}
+                      generalEventsByDate={generalEventsByDate}
+                      maintenanceByDate={maintenanceByDate}
+                      myAvailabilityByDate={myAvailabilityByDate}
+                      allAvailabilitiesByDate={allAvailabilitiesByDate}
+                      weatherData={weatherData}
+                      notesByDate={notesByDate}
+                      getEffectiveAssignment={getEffectiveAssignment}
+                      isCommanderConfirmed={isCommanderConfirmed}
+                      onDayClick={(dateStr) => {
+                        setSelectedDate(dateStr);
+                        setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
+                      }}
+                      onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
+                      onDayEnter={(dateStr) => setHoveredDate(dateStr)}
+                      onDayLeave={() => setHoveredDate(null)}
+                      onMouseMove={handleMouseMove}
+                      DayCell={DayCell}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 3) VISTA METEO MARINO WINDY (A tutta pagina) */}
+            {activeSection === "weather" && (
+              <div className="w-full animate-in fade-in duration-200">
+                <WeatherWidget weatherData={weatherData} />
+              </div>
+            )}
+
+            {/* 4) VISTA BACHECA AVVISI */}
+            {activeSection === "notices" && (
+              <div className="w-full max-w-4xl mx-auto animate-in fade-in duration-200">
+                <NoticeBoard currentUser={currentUser} />
+              </div>
+            )}
+          </main>
+        </div>
+      </div>
 
       <ModalsLayer
         selectedDate={selectedDate}
