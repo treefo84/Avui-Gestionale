@@ -17,7 +17,14 @@ import {
 } from "lucide-react";
 import { Role, User } from "../types";
 
-export type SectionType = "dashboard" | "calendar" | "weather" | "notices";
+export type SectionType =
+  | "dashboard"
+  | "calendar"
+  | "weather"
+  | "notices"
+  | "fleet"
+  | "maintenance"
+  | "users";
 
 interface AppSidebarProps {
   activeSection: SectionType;
@@ -29,9 +36,6 @@ interface AppSidebarProps {
   currentUser: User | null;
   unreadNoticesCount?: number;
   maintenanceAlertCount?: number;
-  onOpenFleet: () => void;
-  onOpenMaintenance: () => void;
-  onOpenUsers: () => void;
   onOpenProfile: () => void;
   onLogout: () => void;
 }
@@ -46,9 +50,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   currentUser,
   unreadNoticesCount = 0,
   maintenanceAlertCount = 0,
-  onOpenFleet,
-  onOpenMaintenance,
-  onOpenUsers,
   onOpenProfile,
   onLogout,
 }) => {
@@ -87,26 +88,23 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
   const adminNavItems = [
     {
-      id: "fleet",
+      id: "fleet" as SectionType,
       label: "Flotta & Barche",
       icon: <Ship size={20} />,
-      action: onOpenFleet,
       visible: true,
     },
     {
-      id: "maintenance",
+      id: "maintenance" as SectionType,
       label: "Diario Manutenzioni",
       icon: <Wrench size={20} />,
-      action: onOpenMaintenance,
       visible: isAdminOrManager,
       badge: maintenanceAlertCount > 0 ? String(maintenanceAlertCount) : null,
       badgeColor: "bg-orange-500 text-white",
     },
     {
-      id: "users",
+      id: "users" as SectionType,
       label: "Gestione Utenti",
       icon: <Users size={20} />,
-      action: onOpenUsers,
       visible: isAdmin,
     },
   ].filter((item) => item.visible);
@@ -247,38 +245,55 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 </div>
               )}
               <nav className="space-y-1">
-                {adminNavItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      item.action();
-                      if (isMobileOpen) onCloseMobile();
-                    }}
-                    title={isCollapsed && !isMobileOpen ? item.label : undefined}
-                    className={`
-                      w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-all group relative cursor-pointer
-                      ${isCollapsed && !isMobileOpen ? "justify-center" : ""}
-                    `}
-                  >
-                    <span className="shrink-0 text-slate-400 group-hover:text-amber-400 transition-transform group-hover:scale-110">
-                      {item.icon}
-                    </span>
-
-                    {(!isCollapsed || isMobileOpen) && (
-                      <span className="truncate flex-1 text-left">{item.label}</span>
-                    )}
-
-                    {(!isCollapsed || isMobileOpen) && item.badge && (
+                {adminNavItems.map((item) => {
+                  const isActive = activeSection === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        onSelectSection(item.id);
+                        if (isMobileOpen) onCloseMobile();
+                      }}
+                      title={isCollapsed && !isMobileOpen ? item.label : undefined}
+                      className={`
+                        w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative cursor-pointer
+                        ${
+                          isActive
+                            ? "bg-blue-600 text-white shadow-md shadow-blue-600/20 font-semibold"
+                            : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                        }
+                        ${isCollapsed && !isMobileOpen ? "justify-center" : ""}
+                      `}
+                    >
                       <span
-                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-                          item.badgeColor || "bg-slate-800 text-slate-300"
+                        className={`shrink-0 transition-transform group-hover:scale-110 ${
+                          isActive ? "text-white" : "text-slate-400 group-hover:text-amber-400"
                         }`}
                       >
-                        {item.badge}
+                        {item.icon}
                       </span>
-                    )}
-                  </button>
-                ))}
+
+                      {(!isCollapsed || isMobileOpen) && (
+                        <span className="truncate flex-1 text-left">{item.label}</span>
+                      )}
+
+                      {(!isCollapsed || isMobileOpen) && item.badge && (
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                            item.badgeColor || "bg-slate-800 text-slate-300"
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+
+                      {/* Collapsed Badge Dot Indicator */}
+                      {isCollapsed && !isMobileOpen && item.badge && (
+                        <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-orange-500 ring-2 ring-slate-900" />
+                      )}
+                    </button>
+                  );
+                })}
               </nav>
             </div>
           )}

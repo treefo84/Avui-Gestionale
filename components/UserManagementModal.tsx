@@ -19,8 +19,9 @@ import {
 } from "lucide-react";
 
 interface UserManagementModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
+  isEmbedded?: boolean;
   users: User[];
   currentUserId: string;
 
@@ -69,8 +70,9 @@ const AVATAR_SEEDS = [
 ];
 
 export const UserManagementModal: React.FC<UserManagementModalProps> = ({
-  isOpen,
+  isOpen = true,
   onClose,
+  isEmbedded = false,
   users,
   currentUserId,
   onAddUser,
@@ -212,39 +214,43 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setEditingUser({ ...editingUser, avatar: newAvatarUrl });
   };
 
-  return (
+  if (!isOpen && !isEmbedded) return null;
+
+  const content = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
+      className={`bg-white rounded-2xl ${
+        isEmbedded
+          ? "shadow-sm border border-slate-200 w-full"
+          : "shadow-2xl w-full max-w-2xl max-h-[85vh]"
+      } overflow-hidden flex flex-col`}
+      onClick={(e) => e.stopPropagation()}
     >
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-          <div className="flex items-center gap-3">
-            {editingUser && (
-              <button
-                onClick={() => setEditingUser(null)}
-                className="p-1 hover:bg-slate-200 rounded-full transition-colors"
-              >
-                <ChevronLeft size={24} />
-              </button>
-            )}
-            <div>
-              <h2 className="text-xl font-bold text-slate-800">
-                {editingUser ? `Modifica ${editingUser.name}` : "Gestisci la Ciurma"}
-              </h2>
-              <p className="text-sm text-slate-500">Area Riservata Ammiragliato</p>
-            </div>
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div className="flex items-center gap-3">
+          {editingUser && (
+            <button
+              onClick={() => setEditingUser(null)}
+              className="p-1 hover:bg-slate-200 rounded-full transition-colors cursor-pointer"
+            >
+              <ChevronLeft size={24} />
+            </button>
+          )}
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">
+              {editingUser ? `Modifica ${editingUser.name}` : "Gestisci la Ciurma"}
+            </h2>
+            <p className="text-sm text-slate-500">Area Riservata Ammiragliato</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+        </div>
+        {!isEmbedded && onClose && (
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors cursor-pointer">
             <X size={20} className="text-slate-500" />
           </button>
-        </div>
+        )}
+      </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+      <div className="flex-1 overflow-y-auto p-6 space-y-8">
           {editingUser ? (
             // =========================
             // EDIT MODE
@@ -659,6 +665,18 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           )}
         </div>
       </div>
+  );
+
+  if (isEmbedded) {
+    return content;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      {content}
     </div>
   );
 };

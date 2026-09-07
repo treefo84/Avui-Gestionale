@@ -15,13 +15,14 @@ import { WeatherDataParsed } from "../services/weatherService";
 
 interface WeatherWidgetProps {
   weatherData?: WeatherDataParsed | null;
+  fullPage?: boolean;
 }
 
 type WindyOverlay = "wind" | "gust" | "waves" | "radar" | "temp";
 
-export function WeatherWidget({ weatherData }: WeatherWidgetProps) {
+export function WeatherWidget({ weatherData, fullPage = false }: WeatherWidgetProps) {
   const [activeOverlay, setActiveOverlay] = useState<WindyOverlay>("wind");
-  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  const [isExpanded, setIsExpanded] = useState<boolean>(fullPage);
 
   // Coordinate di riferimento: Imperia / Mar Ligure
   const lat = 43.88;
@@ -138,7 +139,9 @@ export function WeatherWidget({ weatherData }: WeatherWidgetProps) {
           title="Windy Weather Map Imperia"
           src={windyEmbedUrl}
           className={`w-full border-0 transition-all duration-300 ${
-            isExpanded ? "h-[650px] sm:h-[750px]" : "h-[450px] sm:h-[520px]"
+            fullPage || isExpanded
+              ? "h-[calc(100vh-210px)] min-h-[650px]"
+              : "h-[450px] sm:h-[520px]"
           }`}
           loading="lazy"
           allowFullScreen

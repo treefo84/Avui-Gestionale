@@ -29,6 +29,7 @@ import { DayHoverModal } from "./components/DayHoverModal";
 import { UserManagementModal } from "./components/UserManagementModal";
 import { ProfilePage } from "./components/ProfilePage";
 import { FleetManagementPage } from "./components/FleetManagementPage";
+import { MaintenanceHubPage } from "./components/MaintenanceHubPage";
 import { CalendarGrid } from "./components/CalendarGrid";
 import { ModalsLayer } from "./components/ModalsLayer";
 import { CalendarHeader } from "./components/CalendarHeader";
@@ -2763,9 +2764,6 @@ const App: React.FC = () => {
           isMobileOpen={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
           currentUser={currentUser}
-          onOpenFleet={() => setIsFleetManagementOpen(true)}
-          onOpenMaintenance={() => setIsMaintenanceHubOpen(true)}
-          onOpenUsers={() => setIsUserManagementOpen(true)}
           onOpenProfile={() => setIsProfileOpen(true)}
           onLogout={handleLogout}
         />
@@ -2789,21 +2787,6 @@ const App: React.FC = () => {
             handleAssignmentResponse={handleAssignmentResponse}
             handleMarkNotificationRead={handleMarkNotificationRead}
           />
-
-          {/* Fleet Management (admin) */}
-          {isFleetManagementOpen && (
-            <FleetManagementPage
-              isOpen={isFleetManagementOpen}
-              onClose={() => setIsFleetManagementOpen(false)}
-              boats={boats}
-              activities={activities}
-              maintenanceRecords={maintenanceRecords}
-              onUpdateBoats={setBoats}
-              onUpdateActivities={setActivities}
-              onUpdateMaintenance={setMaintenanceRecords}
-              onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
-            />
-          )}
 
           <main className="flex-1 p-3 sm:p-5 md:p-6 pb-20 w-full max-w-[1600px] mx-auto flex flex-col gap-6">
             {/* 1) VISTA DASHBOARD (Panoramica generale) */}
@@ -2896,7 +2879,7 @@ const App: React.FC = () => {
             {/* 3) VISTA METEO MARINO WINDY (A tutta pagina) */}
             {activeSection === "weather" && (
               <div className="w-full animate-in fade-in duration-200">
-                <WeatherWidget weatherData={weatherData} />
+                <WeatherWidget weatherData={weatherData} fullPage={true} />
               </div>
             )}
 
@@ -2904,6 +2887,54 @@ const App: React.FC = () => {
             {activeSection === "notices" && (
               <div className="w-full max-w-4xl mx-auto animate-in fade-in duration-200">
                 <NoticeBoard currentUser={currentUser} />
+              </div>
+            )}
+
+            {/* 5) VISTA FLOTTA & BARCHE (Scheda dedicata) */}
+            {activeSection === "fleet" && (
+              <div className="w-full animate-in fade-in duration-200">
+                <FleetManagementPage
+                  isEmbedded={true}
+                  boats={boats}
+                  activities={activities}
+                  maintenanceRecords={maintenanceRecords}
+                  onUpdateBoats={setBoats}
+                  onUpdateActivities={setActivities}
+                  onUpdateMaintenance={setMaintenanceRecords}
+                  onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
+                />
+              </div>
+            )}
+
+            {/* 6) VISTA DIARIO MANUTENZIONI (Scheda dedicata) */}
+            {activeSection === "maintenance" && (
+              <div className="w-full animate-in fade-in duration-200">
+                <MaintenanceHubPage
+                  isEmbedded={true}
+                  boats={boats}
+                  records={maintenanceRecords}
+                  currentUser={currentUser}
+                  onUpdateRecords={setMaintenanceRecords}
+                  onDeleteRecords={async (id) => {
+                    setMaintenanceRecords((prev) => prev.filter((r) => r.id !== id));
+                  }}
+                />
+              </div>
+            )}
+
+            {/* 7) VISTA GESTIONE UTENTI (Scheda dedicata) */}
+            {activeSection === "users" && (
+              <div className="w-full max-w-4xl mx-auto animate-in fade-in duration-200">
+                <UserManagementModal
+                  isEmbedded={true}
+                  users={users}
+                  currentUserId={currentUserId ?? ""}
+                  onAddUser={handleAddUser}
+                  onRemoveUser={handleRemoveUser}
+                  onToggleRole={handleToggleRole}
+                  onUpdateUser={handleUpdateUser}
+                  availabilities={availabilities}
+                />
               </div>
             )}
           </main>

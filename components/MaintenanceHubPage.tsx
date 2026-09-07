@@ -5,15 +5,16 @@ import { X, Wrench, CheckCircle2, Clock, Trash2, Calendar, Repeat, RefreshCw, Al
 import { format, isBefore, addDays, differenceInDays, addMonths, addYears } from 'date-fns';
 
 interface MaintenanceHubPageProps {
-    isOpen: boolean;
-    onClose: () => void;
+    isOpen?: boolean;
+    onClose?: () => void;
+    isEmbedded?: boolean;
 
     boats: Boat[];
     records: MaintenanceRecord[];
     currentUser: User | null;
 
     onUpdateRecords: (records: MaintenanceRecord[]) => Promise<void> | void;
-    onDeleteRecords: (id: string) => Promise<void> | void;
+    onDeleteRecords?: (id: string) => Promise<void> | void;
 }
 
 const parseDate = (dateString: string) => {
@@ -22,8 +23,9 @@ const parseDate = (dateString: string) => {
 };
 
 export const MaintenanceHubPage: React.FC<MaintenanceHubPageProps> = ({
-    isOpen,
+    isOpen = true,
     onClose,
+    isEmbedded = false,
     boats,
     records,
     currentUser,
@@ -40,7 +42,8 @@ export const MaintenanceHubPage: React.FC<MaintenanceHubPageProps> = ({
     const [recurrenceVal, setRecurrenceVal] = useState<number | ''>('');
     const [recurrenceUnit, setRecurrenceUnit] = useState<RecurrenceUnit>('years');
 
-    if (!isOpen || !currentUser?.isAdmin) return null;
+    const isAdminOrManager = !!currentUser?.isAdmin || currentUser?.role === 'MANAGER';
+    if ((!isOpen && !isEmbedded) || !isAdminOrManager) return null;
 
     const boatsById = new Map(boats.map(b => [b.id, b]));
 
@@ -196,24 +199,25 @@ export const MaintenanceHubPage: React.FC<MaintenanceHubPageProps> = ({
         }
     };
 
-    return (
-        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex justify-end animate-in fade-in duration-200">
-            <div className="w-full max-w-4xl bg-slate-50 h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-                {/* Header */}
-                <div className="bg-slate-900 text-white px-6 py-6 border-b border-slate-800 flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-orange-500/20 text-orange-400 flex items-center justify-center">
-                            <Wrench size={24} />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-bold">Centro Manutenzioni</h2>
-                            <p className="text-slate-400 text-sm font-medium">Gestione globale flotta</p>
-                        </div>
+    const content = (
+        <div className={`w-full ${isEmbedded ? "bg-white rounded-2xl shadow-sm border border-slate-200" : "max-w-4xl bg-slate-50 h-full shadow-2xl animate-in slide-in-from-right duration-300"} flex flex-col overflow-hidden`}>
+            {/* Header */}
+            <div className="bg-slate-900 text-white px-6 py-5 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-orange-500/20 text-orange-400 flex items-center justify-center">
+                        <Wrench size={24} />
                     </div>
-                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors">
+                    <div>
+                        <h2 className="text-xl font-bold">Centro Manutenzioni</h2>
+                        <p className="text-slate-400 text-sm font-medium">Gestione globale flotta</p>
+                    </div>
+                </div>
+                {!isEmbedded && onClose && (
+                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors cursor-pointer">
                         <X size={24} />
                     </button>
-                </div>
+                )}
+            </div>
 
                 <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
                     {/* Filtri */}
@@ -384,6 +388,17 @@ export const MaintenanceHubPage: React.FC<MaintenanceHubPageProps> = ({
                         </div>
                     </div>
                 </div>
+            </div>
+    );
+
+    if (isEmbedded) {
+        return content;
+    }
+
+    return (
+        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex justify-end animate-in fade-in duration-200" onClick={onClose}>
+            <div onClick={(e) => e.stopPropagation()} className="h-full flex justify-end">
+                {content}
             </div>
         </div>
     );

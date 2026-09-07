@@ -9,7 +9,9 @@ import {
   LayoutDashboard,
   CalendarDays,
   Wind,
-  Megaphone
+  Megaphone,
+  Wrench,
+  Users
 } from "lucide-react";
 import { User, UserNotification } from "../types";
 import { SectionType } from "./AppSidebar";
@@ -60,6 +62,12 @@ export function AppNavbar({
         return { name: "Meteo Marino Windy", icon: <Wind size={18} className="text-sky-500" /> };
       case "notices":
         return { name: "Bacheca Avvisi", icon: <Megaphone size={18} className="text-amber-500" /> };
+      case "fleet":
+        return { name: "Flotta & Imbarcazioni", icon: <Ship size={18} className="text-blue-500" /> };
+      case "maintenance":
+        return { name: "Diario Manutenzioni", icon: <Wrench size={18} className="text-amber-500" /> };
+      case "users":
+        return { name: "Gestione Utenti", icon: <Users size={18} className="text-indigo-500" /> };
       default:
         return { name: "Panoramica", icon: <Ship size={18} className="text-blue-500" /> };
     }

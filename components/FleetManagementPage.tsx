@@ -17,8 +17,9 @@ import {
 } from "lucide-react";
 
 interface FleetManagementPageProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
+  isEmbedded?: boolean;
 
   boats: Boat[];
   activities: Activity[];
@@ -48,8 +49,9 @@ type DbActivityRow = {
 };
 
 export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
-  isOpen,
+  isOpen = true,
   onClose,
+  isEmbedded = false,
   boats,
   activities,
   maintenanceRecords,
@@ -409,45 +411,49 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
   }, [editingBoat, editingActivity]);
 
   // ✅ IMPORTANTISSIMO: niente return prima degli hook.
-  return !isOpen ? null : (
+  if (!isOpen && !isEmbedded) return null;
+
+  const content = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
+      className={`bg-white rounded-2xl ${
+        isEmbedded
+          ? "shadow-sm border border-slate-200 w-full"
+          : "shadow-2xl w-full max-w-4xl max-h-[90vh]"
+      } overflow-hidden flex flex-col`}
+      onClick={(e) => e.stopPropagation()}
     >
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-          <div className="flex items-center gap-3">
-            {(editingBoat || editingActivity) && (
-              <button
-                onClick={() => {
-                  setEditingBoat(null);
-                  setEditingActivity(null);
-                  setErrorMsg(null);
-                }}
-                className="p-1 hover:bg-slate-200 rounded-full transition-colors"
-              >
-                <ChevronLeft size={24} />
-              </button>
-            )}
-            <div className="bg-blue-600 p-2 rounded-lg text-white">
-              <Anchor size={20} />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-800">{title}</h2>
-              <p className="text-sm text-slate-500">Cantiere Navale</p>
-            </div>
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div className="flex items-center gap-3">
+          {(editingBoat || editingActivity) && (
+            <button
+              onClick={() => {
+                setEditingBoat(null);
+                setEditingActivity(null);
+                setErrorMsg(null);
+              }}
+              className="p-1 hover:bg-slate-200 rounded-full transition-colors cursor-pointer"
+            >
+              <ChevronLeft size={24} />
+            </button>
+          )}
+          <div className="bg-blue-600 p-2 rounded-lg text-white">
+            <Anchor size={20} />
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">{title}</h2>
+            <p className="text-sm text-slate-500">Cantiere Navale</p>
+          </div>
+        </div>
+        {!isEmbedded && onClose && (
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors cursor-pointer">
             <X size={20} className="text-slate-500" />
           </button>
-        </div>
+        )}
+      </div>
 
-        {/* Error banner */}
-        {errorMsg && (
+      {/* Error banner */}
+      {errorMsg && (
           <div className="px-6 py-3 bg-rose-50 border-b border-rose-100 text-rose-700 text-sm font-semibold">
             {errorMsg}
           </div>
@@ -903,8 +909,19 @@ export const FleetManagementPage: React.FC<FleetManagementPageProps> = ({
             </div>
           )}
         </div>
-
       </div>
+  );
+
+  if (isEmbedded) {
+    return content;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      {content}
     </div>
   );
 };
