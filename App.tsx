@@ -2789,27 +2789,81 @@ const App: React.FC = () => {
           />
 
           <main className="flex-1 p-3 sm:p-5 md:p-6 pb-20 w-full max-w-[1600px] mx-auto flex flex-col gap-6">
-            {/* 1) VISTA DASHBOARD (Panoramica generale) */}
+            {/* 1) VISTA DASHBOARD (Panoramica: Calendario a sinistra + Prossime Uscite e Bacheca a destra) */}
             {activeSection === "dashboard" && (
-              <div className="flex flex-col gap-6 w-full animate-in fade-in duration-200">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full items-start">
-                  <div className="lg:col-span-5 flex flex-col gap-6">
-                    <NextAssignmentsBox
-                      assignments={assignments}
-                      generalEvents={generalEvents}
-                      boats={boats}
-                      activities={activities}
-                      currentUser={currentUser}
-                    />
-                  </div>
-                  <div className="lg:col-span-7">
-                    <NoticeBoard currentUser={currentUser} />
+              <div className="flex flex-col xl:flex-row gap-4 md:gap-6 w-full animate-in fade-in duration-200">
+                {/* Calendar Section */}
+                <div className="flex-1 min-w-0 bg-white md:rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col p-3 sm:p-4 md:p-6 -mx-2 sm:mx-0">
+                  <CalendarHeader
+                    currentDate={currentDate}
+                    calendarView={calendarView}
+                    onPrev={() => navigateCalendar("prev")}
+                    onToday={() => setCurrentDate(new Date())}
+                    onNext={() => navigateCalendar("next")}
+                    onSetView={(v) => setCalendarView(v)}
+                    enableWeekView={globalSettings?.enable_week_view ?? false}
+                  />
+
+                  <div className="flex-1 bg-white xl:bg-transparent rounded-xl xl:rounded-none">
+                    {calendarView === "table" ? (
+                      <TableView
+                        currentUser={currentUser}
+                        users={users}
+                        availabilities={availabilities}
+                        assignments={assignments}
+                        generalEvents={generalEvents}
+                        boats={boats}
+                        activities={activities}
+                        onDateClick={(dateStr) => {
+                          setSelectedDate(dateStr);
+                          setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
+                        }}
+                        onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
+                      />
+                    ) : (
+                      <CalendarGrid
+                        daysToRender={daysToRender}
+                        calendarView={calendarView}
+                        startDayPadding={startDayPadding}
+                        currentUser={currentUser}
+                        boats={boats}
+                        activitiesById={activitiesById}
+                        boatsById={boatsById}
+                        usersById={usersById}
+                        calEventsByDate={calEventsByDate}
+                        generalEventsByDate={generalEventsByDate}
+                        maintenanceByDate={maintenanceByDate}
+                        myAvailabilityByDate={myAvailabilityByDate}
+                        allAvailabilitiesByDate={allAvailabilitiesByDate}
+                        weatherData={weatherData}
+                        notesByDate={notesByDate}
+                        getEffectiveAssignment={getEffectiveAssignment}
+                        isCommanderConfirmed={isCommanderConfirmed}
+                        onDayClick={(dateStr) => {
+                          setSelectedDate(dateStr);
+                          setSelectedCalendarEvents(calEventsByDate.get(dateStr) ?? []);
+                        }}
+                        onOpenBoatPage={(boatId) => setSelectedBoatIdForPage(boatId)}
+                        onDayEnter={(dateStr) => setHoveredDate(dateStr)}
+                        onDayLeave={() => setHoveredDate(null)}
+                        onMouseMove={handleMouseMove}
+                        DayCell={DayCell}
+                      />
+                    )}
                   </div>
                 </div>
 
-                <div className="w-full">
-                  <WeatherWidget weatherData={weatherData} />
-                </div>
+                {/* Right Column: Next Assignments + Notice Board */}
+                <aside className="w-full xl:w-[400px] shrink-0 flex flex-col gap-6">
+                  <NextAssignmentsBox
+                    assignments={assignments}
+                    generalEvents={generalEvents}
+                    boats={boats}
+                    activities={activities}
+                    currentUser={currentUser}
+                  />
+                  <NoticeBoard currentUser={currentUser} />
+                </aside>
               </div>
             )}
 
