@@ -2787,7 +2787,7 @@ const App: React.FC = () => {
         />
       )}
 
-      <main className="flex-1 p-2 sm:p-4 md:p-6 pb-20 gap-4 md:gap-6 w-full max-w-[1400px] mx-auto flex flex-col">
+      <main className="flex-1 p-2 sm:p-4 md:p-6 pb-20 gap-4 md:gap-6 w-full max-w-[1536px] mx-auto flex flex-col">
         {/* Top Section: Calendar + Sidebar */}
         <div className="flex flex-col xl:flex-row gap-4 md:gap-6 w-full">
           {/* Calendar Section */}
