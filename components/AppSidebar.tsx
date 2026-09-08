@@ -131,22 +131,26 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         `}
       >
         {/* Header Logo */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800/80 bg-slate-950/40">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="p-2 bg-blue-600 rounded-xl text-white shadow-md flex items-center justify-center shrink-0 ring-2 ring-blue-500/30">
-              <Anchor size={20} />
-            </div>
-            {(!isCollapsed || isMobileOpen) && (
-              <div className="flex flex-col min-w-0 transition-opacity duration-200">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-white tracking-tight truncate text-base">
-                    Avui Manager
-                  </span>
-                  <span className="text-[10px] font-extrabold px-1.5 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full">
-                    2.0
-                  </span>
-                </div>
-                <span className="text-[11px] text-slate-400 truncate">Base Nautica Imperia</span>
+        <div className="h-16 flex items-center justify-between px-3.5 border-b border-slate-800/80 bg-slate-950/40">
+          <div className="flex items-center gap-2 overflow-hidden">
+            {isCollapsed && !isMobileOpen ? (
+              <div className="w-10 h-10 flex items-center justify-center overflow-hidden rounded-xl bg-slate-900/90 border border-slate-800 shadow-sm" title="AVUI Sailing Team">
+                <img
+                  src="/logo-avui.png"
+                  alt="AVUI"
+                  className="h-7 w-auto max-w-none object-cover object-left pl-0.5"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 min-w-0 transition-opacity duration-200 py-1">
+                <img
+                  src="/logo-avui.png"
+                  alt="AVUI Sailing Team"
+                  className="h-8 w-auto max-w-[150px] object-contain shrink-0"
+                />
+                <span className="text-[10px] font-extrabold px-1.5 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full shrink-0">
+                  2.0
+                </span>
               </div>
             )}
           </div>

@@ -102,8 +102,8 @@ export function AppNavbar({
         </div>
       </div>
 
-      {/* Right side: Notifications + User Profile + Logout */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      {/* Right side: Only Notifications Bell */}
+      <div className="flex items-center gap-2">
         {/* Notification Bell + Panel */}
         <div className="relative">
           <button
@@ -200,48 +200,6 @@ export function AppNavbar({
             </div>
           )}
         </div>
-
-        {/* User Info & Avatar */}
-        <div
-          onClick={() => setIsProfileOpen(true)}
-          className="flex items-center gap-2.5 pl-2 py-1 pr-1.5 rounded-xl hover:bg-slate-100 cursor-pointer transition-all border border-transparent hover:border-slate-200"
-          title="Apri Profilo Personale"
-        >
-          <div className="hidden sm:flex flex-col text-right">
-            <span className="text-xs font-bold text-slate-800 leading-tight">
-              {currentUser?.name || "Utente"}
-            </span>
-            <span className="text-[10px] font-extrabold text-blue-600 uppercase tracking-wider">
-              {currentUser?.role || "MARINAIO"}
-            </span>
-          </div>
-
-          <div className="relative">
-            <img
-              src={
-                currentUser?.avatar ||
-                `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.name || "sailor"}`
-              }
-              className="w-8 h-8 rounded-full border border-slate-200 bg-slate-100 object-cover"
-              alt="Avatar"
-            />
-            {currentUser?.isAdmin && (
-              <span className="absolute -top-1 -right-1 bg-amber-500 text-[8px] font-black text-slate-900 px-1 rounded-full border border-white">
-                ★
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Quick Logout */}
-        <button
-          onClick={handleLogout}
-          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors cursor-pointer"
-          aria-label="Logout"
-          title="Esci dall'applicazione"
-        >
-          <LogOut size={18} />
-        </button>
       </div>
     </nav>
   );
