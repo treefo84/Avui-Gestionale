@@ -131,34 +131,36 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         `}
       >
         {/* Header Logo */}
-        <div className="h-16 flex items-center justify-between px-3.5 border-b border-slate-800/80 bg-slate-950/40">
-          <div className="flex items-center gap-2 overflow-hidden">
-            {isCollapsed && !isMobileOpen ? (
-              <div className="w-10 h-10 flex items-center justify-center overflow-hidden rounded-xl bg-slate-900/90 border border-slate-800 shadow-sm" title="AVUI Sailing Team">
-                <img
-                  src="/logo-avui.png"
-                  alt="AVUI"
-                  className="h-7 w-auto max-w-none object-cover object-left pl-0.5"
-                />
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 min-w-0 transition-opacity duration-200 py-1">
-                <img
-                  src="/logo-avui.png"
-                  alt="AVUI Sailing Team"
-                  className="h-8 w-auto max-w-[150px] object-contain shrink-0"
-                />
-                <span className="text-[10px] font-extrabold px-1.5 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full shrink-0">
-                  2.0
-                </span>
-              </div>
-            )}
-          </div>
+        <div className={`h-16 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/40 transition-all ${isCollapsed && !isMobileOpen ? "px-2" : "px-3.5"}`}>
+          {isCollapsed && !isMobileOpen ? (
+            <button
+              onClick={onToggleCollapse}
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 shadow-sm p-1.5 shrink-0 transition-colors cursor-pointer group"
+              title="Espandi menu"
+            >
+              <img
+                src="/logo-avui-icon.png"
+                alt="AVUI"
+                className="h-full w-full object-contain group-hover:scale-105 transition-transform"
+              />
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 flex-1 min-w-0 pr-1 py-1">
+              <img
+                src="/logo-avui.png"
+                alt="AVUI Sailing Team"
+                className="h-9 w-auto max-w-[170px] object-contain shrink-0"
+              />
+              <span className="text-[10px] font-extrabold px-1.5 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full shrink-0">
+                2.0
+              </span>
+            </div>
+          )}
 
           {/* Close Mobile Button */}
           <button
             onClick={onCloseMobile}
-            className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
           >
             <X size={20} />
           </button>
@@ -166,7 +168,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           {/* Desktop Collapse Button */}
           <button
             onClick={onToggleCollapse}
-            className="hidden lg:flex p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors ml-auto cursor-pointer"
+            className="hidden lg:flex p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
             title={isCollapsed ? "Espandi menu" : "Comprimi menu"}
           >
             {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
