@@ -39,6 +39,7 @@ import { NoticeBoard } from "./components/NoticeBoard";
 import { NextAssignmentsBox } from "./components/NextAssignmentsBox";
 import { WeatherWidget } from "./components/WeatherWidget";
 import { TableView } from "./components/TableView";
+import { PriceListPage } from "./components/PriceListPage";
 
 
 
@@ -2941,6 +2942,13 @@ const App: React.FC = () => {
             {activeSection === "notices" && (
               <div className="w-full max-w-4xl mx-auto animate-in fade-in duration-200">
                 <NoticeBoard currentUser={currentUser} />
+              </div>
+            )}
+
+            {/* 5) VISTA LISTINO PREZZI & CORSI */}
+            {activeSection === "pricelist" && (
+              <div className="w-full max-w-7xl mx-auto animate-in fade-in duration-200">
+                <PriceListPage currentUser={currentUser} />
               </div>
             )}
 

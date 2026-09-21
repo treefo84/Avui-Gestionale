@@ -13,7 +13,8 @@ import {
   User as UserIcon,
   Anchor,
   X,
-  Sparkles
+  Sparkles,
+  Tag
 } from "lucide-react";
 import { Role, User } from "../types";
 
@@ -22,6 +23,7 @@ export type SectionType =
   | "calendar"
   | "weather"
   | "notices"
+  | "pricelist"
   | "fleet"
   | "maintenance"
   | "users";
@@ -83,6 +85,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       icon: <Megaphone size={20} />,
       badge: unreadNoticesCount > 0 ? String(unreadNoticesCount) : null,
       badgeColor: "bg-amber-500 text-slate-900",
+    },
+    {
+      id: "pricelist" as SectionType,
+      label: "Listino Prezzi",
+      icon: <Tag size={20} />,
+      badge: null,
     },
   ];
 

@@ -205,3 +205,23 @@ export interface CalendarEvent {
   activityName?: string | null;
 }
 
+// --- Listino Prezzi & Corsi ---
+export interface PriceItem {
+  id: string;
+  title: string;
+  category: string;
+  price: number;
+  priceDetail?: string; // es. 'a persona', 'a barca', 'all\'ora', 'annuale'
+  duration?: string;    // es. '3 weekend + esame', '2 giorni', '3 ore'
+  description?: string; // cosa include, argomenti, programma
+  requirements?: string; // requisiti di accesso (visita medica, tessera FIV, ecc.)
+  notes?: string;       // note su pagamenti, promozioni, rateizzazione
+  orderIndex?: number;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+  updatedByName?: string;
+}
+
+
